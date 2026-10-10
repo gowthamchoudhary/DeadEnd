@@ -5,6 +5,8 @@ services:
     dockerfilePath: ./deadend_backend/Dockerfile
     plan: starter
     healthCheckPath: /healthz
+
+    # app/ is the build context root; start.sh lives next to it
     envVars:
       - key: DEADEND_ENV
         value: prod
