@@ -13,6 +13,11 @@ that instead of inventing one.
 Usage:
   python3 curator.py --trace-id f562... [--checkpoint-id 01ABC] \
       [--repo /home/daytona/repos/deadend-private]
+
+Scanner patterns carry no inline global flags: Python 3.11+ rejects them
+when they appear anywhere but the start of the expression, and joining
+patterns into an alternation always places them mid-expression.
+Case-insensitivity is applied via re.I at the search/sub call sites.
 """
 import argparse, datetime, hashlib, json, os, re, subprocess, sys, urllib.request
 
@@ -62,39 +67,39 @@ SECRET_PATTERNS = [
     (r"aV5[A-Za-z0-9_-]{25,}", "neatlogs-style-key"),
     (r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", "jwt"),
     (r"-----BEGIN( [A-Z]+)? PRIVATE KEY-----", "private-key"),
-    (r"(?i)(postgres|mysql|mongodb(\+srv)?)://[^\s:@]+:[^\s@]+@", "connection-string"),
-    (r"(?i)bearer\s+[A-Za-z0-9._-]{20,}", "bearer-token"),
-    (r"(?i)gh[pousr]_[A-Za-z0-9]{30,}", "github-token"),
-    (r"(?i)xox[baprs]-[A-Za-z0-9-]{10,}", "slack-token"),
+    (r"(postgres|mysql|mongodb(\+srv)?)://[^\s:@]+:[^\s@]+@", "connection-string"),
+    (r"bearer\s+[A-Za-z0-9._-]{20,}", "bearer-token"),
+    (r"gh[pousr]_[A-Za-z0-9]{30,}", "github-token"),
+    (r"xox[baprs]-[A-Za-z0-9-]{10,}", "slack-token"),
 ]
 INJECTION_PATTERNS = [
-    (r"(?i)ignore\s+(all\s+)?(previous|prior|above)\s+instructions", "instruction-override"),
-    (r"(?i)disregard\s+(the\s+)?(system|previous|above)", "instruction-override"),
-    (r"(?i)\b(exfiltrate|send|post)\b.{0,40}\b(api.?key|secret|token|credentials)\b", "exfiltration"),
-    (r"(?i)you\s+are\s+now\s+(a|an)\s+", "role-hijack"),
-    (r"(?i)\bsudo\b|\brm\s+-rf\b.{0,30}(no-preserve-root|/)", "destructive-command"),
-    (r"(?i)print|reveal|show.{0,30}(system\s+prompt|instructions)", "prompt-leak"),
+    (r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions", "instruction-override"),
+    (r"disregard\s+(the\s+)?(system|previous|above)", "instruction-override"),
+    (r"\b(exfiltrate|send|post)\b.{0,40}\b(api.?key|secret|token|credentials)\b", "exfiltration"),
+    (r"you\s+are\s+now\s+(a|an)\s+", "role-hijack"),
+    (r"\bsudo\b|\brm\s+-rf\b.{0,30}(no-preserve-root|/)", "destructive-command"),
+    (r"print|reveal|show.{0,30}(system\s+prompt|instructions)", "prompt-leak"),
 ]
 REDACT = [
     (r"AKIA[0-9A-Z]{16}", "[REDACTED:aws-key]"),
     (r"sk-[A-Za-z0-9_-]{20,}", "[REDACTED:key]"),
     (r"aV5[A-Za-z0-9_-]{25,}", "[REDACTED:key]"),
     (r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", "[REDACTED:jwt]"),
-    (r"(?i)(postgres|mysql|mongodb(\+srv)?)://[^\s:@]+:[^\s@]+@", r"\1://[REDACTED]@"),
-    (r"(?i)bearer\s+[A-Za-z0-9._-]{20,}", "bearer [REDACTED]"),
-    (r"(?i)gh[pousr]_[A-Za-z0-9]{30,}", "[REDACTED:github-token]"),
-    (r"(?i)xox[baprs]-[A-Za-z0-9-]{10,}", "[REDACTED:slack-token]"),
+    (r"(postgres|mysql|mongodb(\+srv)?)://[^\s:@]+:[^\s@]+@", r"\1://[REDACTED]@"),
+    (r"bearer\s+[A-Za-z0-9._-]{20,}", "bearer [REDACTED]"),
+    (r"gh[pousr]_[A-Za-z0-9]{30,}", "[REDACTED:github-token]"),
+    (r"xox[baprs]-[A-Za-z0-9-]{10,}", "[REDACTED:slack-token]"),
 ]
 
 def secret_scan(text):
-    return [name for pat, name in SECRET_PATTERNS if re.search(pat, text or "")]
+    return [name for pat, name in SECRET_PATTERNS if re.search(pat, text or "", re.I)]
 
 def injection_scan(text):
-    return [name for pat, name in INJECTION_PATTERNS if re.search(pat, text or "")]
+    return [name for pat, name in INJECTION_PATTERNS if re.search(pat, text or "", re.I)]
 
 def redact(text):
     for pat, repl in REDACT:
-        text = re.sub(pat, repl, text or "")
+        text = re.sub(pat, repl, text or "", flags=re.I)
     return text
 
 # ------------------------------------------------------- failure extraction
