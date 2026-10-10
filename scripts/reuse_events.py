@@ -22,6 +22,7 @@ def record(repo: str, event: dict) -> dict:
             recorded_at, trace_id}
     """
     required = {"failure_id", "outcome", "run_id"}
+    event.setdefault("kind", "real")  # test events must be marked explicitly
     missing = required - set(event)
     if missing:
         return {"ok": False, "error": f"missing required fields: {missing}"}

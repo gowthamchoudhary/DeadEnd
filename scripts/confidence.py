@@ -49,10 +49,12 @@ def _decay(last_ts: str, now=None) -> float:
 
 def confidence(fix: dict, reuse_events: list, cur_env: dict, now=None) -> dict:
     """fix: the fix object of a deadend entry; reuse_events: real events
-    for this failure; cur_env: current environment fingerprint."""
+    for this failure; cur_env: current environment fingerprint.
+    Events with kind == "test" are validation/testing entries and are
+    excluded from scoring (marked on the Entire-native branch)."""
     verified = bool(fix.get("verified"))
     alpha, beta = (2.0, 1.0) if verified else (1.0, 1.0)
-    envs = [ev for ev in reuse_events]
+    envs = [ev for ev in reuse_events if ev.get("kind") != "test"]
     for ev in envs:
         w = env_match(ev.get("env_match") or ev.get("environment") or cur_env, cur_env)
         ok = ev.get("outcome") == "success"
