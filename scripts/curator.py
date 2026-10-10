@@ -134,9 +134,14 @@ def env_fingerprint():
 
 # ------------------------------------------------------------------ curation
 def curate(trace, checkpoint_text, repo_path, trace_meta):
+    checkpoint_id = trace_meta.get("checkpoint_id")
     findings = extract_failures(trace)
+    if checkpoint_text and not findings:
+        # checkpoint-only input: use transcript text as the sole finding
+        findings = [{"name": "entire-checkpoint", "status": "error",
+                     "error": checkpoint_text[:500]}]
     if not findings:
-        return {"action": "skip", "reason": "no failure found in trace (real-data-only rule)"}
+        return {"action": "skip", "reason": "no failure found in trace or checkpoint (real-data-only rule)"}
     source_text = json.dumps(findings) + "\n" + (checkpoint_text or "")
     scan_hits = {"secrets": secret_scan(source_text), "injection": [
         n for n in injection_scan(source_text)]}
@@ -162,11 +167,13 @@ def curate(trace, checkpoint_text, repo_path, trace_meta):
             "checkpoint_ref": trace_meta.get("checkpoint_id"),
             "trace_id": trace_meta.get("trace_id")}
             for f, err in [(s, s.get("error") or (s.get("output_value") if "rg" in str(s.get("output_value", "")) else None)) for s in findings]],
-        "provenance": {"curated_at": now.isoformat(), "curator": "curator.py v0.2",
+        "provenance": {"curated_at": now.isoformat(), "curator": "curator.py v0.3",
                        "trace_id": trace_meta.get("trace_id"),
+                       "checkpoint_id": trace_meta.get("checkpoint_id"),
                        "workflow_name": trace_meta.get("workflow_name"),
-                       "checkpoint_id": trace_meta.get("checkpoint_id")},
-        "source": "trace",
+                       "inputs_used": (["neatlogs-trace"] if trace.get("spans") else []) +
+                                      (["entire-checkpoint"] if (trace_meta.get("checkpoint_text") or "").strip() else [])},
+        "source": "trace+checkpoint" if trace_meta.get("checkpoint_text") else "trace",
     }
     if suspicious:
         entry["quarantine"] = {"reasons": scan_hits}
@@ -213,6 +220,7 @@ def main():
 
     res = curate(trace if isinstance(trace, dict) else {}, checkpoint_text, a.repo,
                  {"trace_id": a.trace_id, "checkpoint_id": a.checkpoint_id,
+                  "checkpoint_text": checkpoint_text,
                   "workflow_name": (trace if isinstance(trace, dict) else {}).get("workflow") or (trace if isinstance(trace, dict) else {}).get("root_span_name")})
     print(json.dumps(res, indent=2))
     if res["action"] in ("written", "quarantined"):
