@@ -3,7 +3,6 @@ services:
     name: deadend-backend
     runtime: docker
     dockerfilePath: ./deadend_backend/Dockerfile
-    build: .
     plan: starter
     healthCheckPath: /healthz
     envVars:
