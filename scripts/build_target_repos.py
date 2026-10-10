@@ -231,7 +231,7 @@ CI runs: `bash run_tests.sh`
 
 BUGS = [
     ("bug1-nested-blockon", "app", "orders.py", BUG1_APP, BUG1_TESTS, BUG1_README),
-    ("bug2-cors-middleware", "app", "ingest.py", BUG2_APP, BUG2_TESTS, BUG2_README),
+    ("bug2-csv-bom-decode", "app", "ingest.py", BUG2_APP, BUG2_TESTS, BUG2_README),
     ("bug3-tz-naive-compare", "app", "catalog.py", BUG3_APP, BUG3_TESTS, BUG3_README),
 ]
 
