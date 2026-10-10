@@ -5,6 +5,7 @@ import hashlib
 import secrets
 import threading
 import time
+from collections import defaultdict, deque
 
 from fastapi import Depends, HTTPException, Request, Response
 from itsdangerous import BadSignature, SignatureExpired, TimestampSigner

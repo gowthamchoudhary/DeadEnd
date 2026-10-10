@@ -14,7 +14,6 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import Entry, ReuseEvent, TeamMember
 from ..normalize import signature_hash
-from ..scan_limits import check_size
 from ..scans import strip_injection_from_context
 from ..security import RATE, check_rate, current_user
 
