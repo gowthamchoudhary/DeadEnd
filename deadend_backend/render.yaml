@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: deadend-backend
+    runtime: docker
+    dockerfilePath: ./deadend_backend/Dockerfile
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: DEADEND_ENV
+        value: prod
+      - key: DEADEND_DATABASE_URL
+        sync: false          # set in Render dashboard (Supabase pooled URL)
+      - key: DEADEND_AUTH_SECRET
+        generateValue: true
+      - key: DEADEND_GITHUB_CLIENT_ID
+        sync: false
+      - key: DEADEND_GITHUB_CLIENT_SECRET
+        sync: false
+      - key: DEADEND_WEB_ORIGIN
+        sync: false          # e.g. https://deadend-web.vercel.app
+      - key: DEADEND_BASE_URL
+        sync: false          # e.g. https://deadend-backend.onrender.com
+      - key: DEADEND_NEATLOGS_API_KEY
+        sync: false
