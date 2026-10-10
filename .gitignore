@@ -1,0 +1,21 @@
+# secrets — never commit
+.env
+.env.local
+.env.*
+!.env.example
+
+# Entire token store (headless file fallback)
+tokens.json
+*token*.json
+
+# checkpoints/session data
+.entire/settings.local.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# node
+node_modules/
+dist/
