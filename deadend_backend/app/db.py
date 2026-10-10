@@ -45,12 +45,44 @@ def get_db():
 def create_all():
     from .models import Base
     Base.metadata.create_all(get_engine())
-    # pgvector prep: entries.embedding vector column + index (idempotent)
     from sqlalchemy import text
+    import logging
+    log = logging.getLogger("deadend.db")
     with get_engine().begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.execute(text("""
-            ALTER TABLE entries ADD COLUMN IF NOT EXISTS embedding vector(768);
-            CREATE INDEX IF NOT EXISTS ix_entries_embedding
-              ON entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-        """))
+
+        # Legacy databases may have `embedding` as TEXT (pre-pgvector model).
+        # Table is empty/col nullable at this stage: safe to drop and recreate
+        # as vector(768). Failures here are non-fatal — app still starts.
+        for table in ("entries", "failures", "attempts", "fixes"):
+            try:
+                exists = conn.execute(text(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = 'embedding')"),
+                    {"t": table}).scalar()
+                if not exists:
+                    continue
+                ctype = conn.execute(text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = 'embedding'"),
+                    {"t": table}).scalar()
+                if ctype and "char" in ctype:  # text / varchar
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ALTER COLUMN embedding TYPE vector(768) USING NULL"))
+                    log.info("converted %s.embedding from %s to vector(768)", table, ctype)
+            except Exception:
+                log.warning("embedding column repair for %s skipped", table, exc_info=True)
+
+        # ivfflat index (idempotent); non-fatal so startup never blocks on it
+        try:
+            index_exists = conn.execute(text(
+                "SELECT EXISTS (SELECT 1 FROM pg_indexes "
+                "WHERE indexname = 'ix_entries_embedding')")).scalar()
+            if not index_exists:
+                conn.execute(text(
+                    "CREATE INDEX ix_entries_embedding ON entries "
+                    "USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)"))
+            log.info("embedding index ready")
+        except Exception:
+            log.warning("ivfflat index creation skipped", exc_info=True)
+    return None

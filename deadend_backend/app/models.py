@@ -6,6 +6,7 @@ from sqlalchemy import (BigInteger, Boolean, DateTime, Float, ForeignKey,
                         Index, Integer, String, Text, UniqueConstraint, func)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 
 class Base(DeclarativeBase):
@@ -100,7 +101,7 @@ class Entry(Base):
     entire_checkpoint_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     alpha: Mapped[float] = mapped_column(Float, default=1.0)
     beta: Mapped[float] = mapped_column(Float, default=1.0)
-    embedding: Mapped[list | None] = mapped_column(Text, nullable=True)  # pgvector col via raw SQL
+    embedding: Mapped[list | None] = mapped_column(Vector(768), nullable=True)
     created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_reuse_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
