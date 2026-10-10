@@ -1,0 +1,13 @@
+[project]
+name = "deadend-runner"
+version = "0.1.0"
+description = "DeadEnd local runner: retrieve context, drive Claude Code headless, report runs"
+requires-python = ">=3.10"
+dependencies = ["httpx>=0.27", "typer>=0.12"]
+
+[project.scripts]
+deadend-runner = "deadend_runner.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
