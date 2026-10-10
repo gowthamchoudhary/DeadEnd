@@ -12,8 +12,13 @@ def get_engine():
     global _engine
     if _engine is None:
         url = S.database_url
+        # normalize legacy schemes; sqlalchemy with psycopg v3 needs the
+        # postgresql+psycopg:// scheme (plain postgresql:// defaults to
+        # the psycopg2 dialect, which isn't installed -> ModuleNotFoundError)
         if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql://", 1)
+            url = "postgresql+psycopg://" + url[len("postgres://"):]
+        elif url.startswith("postgresql://"):
+            url = "postgresql+psycopg://" + url[len("postgresql://"):]
         _engine = create_engine(url, pool_pre_ping=True, future=True)
     return _engine
 
