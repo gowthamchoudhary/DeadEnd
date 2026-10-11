@@ -8,7 +8,7 @@ the runner in POST /runs/{id}/summary).
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
