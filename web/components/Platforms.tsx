@@ -1,9 +1,9 @@
 "use client";
 
-/** Platforms strip — dark bordered logo grid, 6 cells, separated by
- * inner 1px borders like the reference. Logos live at
- * /public/logos/<agent>.svg or .png; falls back to name-only if missing. */
-import { useMemo } from "react";
+/** Platforms band — the reference's bare logo grid: a full-width dark band
+ * with hairline dividers between cells and no heading. Logos live at
+ * /public/logos/<agent>.svg | .png | .webp; falls back to name-only. */
+import { useMemo, useState } from "react";
 
 const AGENTS = [
   { id: "claude-code", name: "Claude Code" },
@@ -16,36 +16,22 @@ const AGENTS = [
 
 const EXT_OK = [".svg", ".png", ".webp"];
 
-function useLogoPaths() {
-  return useMemo(
-    () =>
-      AGENTS.map((a) => ({
-        ...a,
-        candidates: EXT_OK.map((ext) => `/logos/${a.id}${ext}`),
-      })),
+export function Platforms() {
+  const agents = useMemo(
+    () => AGENTS.map((a) => ({ ...a, candidates: EXT_OK.map((ext) => `/logos/${a.id}${ext}`) })),
     []
   );
-}
-
-export function Platforms() {
-  const agents = useLogoPaths();
   return (
     <>
       <div className="hatch mt-16 md:mt-24" aria-hidden />
       <section id="platforms" className="bg-ink-950 border-b border-line-900">
-        <div className="mx-auto max-w-6xl px-6 py-16">
-          <h2 className="text-center text-h2 font-bold">
-            Works with the agents you already use.
-          </h2>
-          <p className="text-center text-small text-text-muted mt-3 max-w-md mx-auto">
-            Same machine, same credentials, nothing new to manage.
-          </p>
-          <div className="mt-10 grid grid-cols-2 md:grid-cols-3 border border-line-800 rounded-card overflow-hidden bg-ink-900">
-            {agents.map((a, i) => (
-              <div key={a.id}
-                className={`flex items-center justify-center gap-2.5 h-24 border-line-800 ${
-                  i % 2 === 0 ? "border-r" : ""} ${i < 2 ? "border-b md:border-b-0" : ""} 
-                  ${i === 0 ? "md:border-r" : ""} ${i === 1 ? "md:border-r" : ""}`}
+        <div className="mx-auto max-w-5xl px-6 py-12">
+          {/* hairline grid: outer top/left on the container, right/bottom per cell */}
+          <div className="grid grid-cols-2 md:grid-cols-3 border-t border-l border-line-800/70">
+            {agents.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-center gap-2.5 h-24 border-r border-b border-line-800/70"
               >
                 <PlatformCell name={a.name} candidates={a.candidates} />
               </div>
@@ -56,8 +42,6 @@ export function Platforms() {
     </>
   );
 }
-
-import { useState } from "react";
 
 function PlatformCell({ name, candidates }: { name: string; candidates: string[] }) {
   const [srcIdx, setSrcIdx] = useState(0);

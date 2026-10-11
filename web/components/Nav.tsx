@@ -1,7 +1,8 @@
 "use client";
 
-/** Nav — matches reference: mark left, links, Login outline + Sign up fill.
- * Both buttons go to GitHub sign-in (proxying to the backend). */
+/** Nav — matches reference: mark left, centred links, Login outline +
+ * Sign up fill. Sits over the light hero gradient, so every element is
+ * dark-on-light. Both buttons go to GitHub sign-in (backend proxy). */
 import Link from "next/link";
 
 export function DeadEndMark({ size = 22 }: { size?: number }) {
@@ -30,19 +31,19 @@ export function Nav() {
   return (
     <header className="absolute top-0 left-0 right-0 z-30">
       <div className="mx-auto max-w-6xl px-6 h-nav flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-[17px] tracking-tight">
+        <Link href="/" className="flex items-center gap-2 font-semibold text-[17px] tracking-tight text-ink-950">
           <DeadEndMark />
           DeadEnd
         </Link>
-        <nav className="hidden md:flex items-center gap-7 text-small text-text-secondary">
+        <nav className="hidden md:flex items-center gap-7 text-small text-ink-950/70">
           {LINKS.map((l) => (
-            <a key={l.href} href={l.href} className="hover:text-text-primary transition-colors">
+            <a key={l.href} href={l.href} className="hover:text-ink-950 transition-colors">
               {l.label}
             </a>
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          <a href={AUTH_HREF} className="pill-outline text-small px-4 py-1.5 hover:bg-white/5 transition-colors">
+          <a href={AUTH_HREF} className="rounded-full border border-ink-950/25 text-ink-950 text-small px-4 py-1.5 hover:border-ink-950/50 hover:bg-ink-950/5 transition-colors">
             Login
           </a>
           <a href={AUTH_HREF} className="pill-fill text-small px-4 py-1.5 font-medium">

@@ -23,6 +23,36 @@ function SectionHead({ title, sub, id }: { title: string; sub?: string; id?: str
   );
 }
 
+/* ----------------------- centred intro + CTA after the logo band ------- */
+
+export function CtaIntro() {
+  return (
+    <section className="mx-auto max-w-6xl px-6 pt-24 pb-2 text-center">
+      <motion.h2
+        initial={{ opacity: 0, y: 14 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.5 }}
+        className="text-h2 font-bold max-w-2xl mx-auto"
+      >
+        Memory that outlives the session.
+      </motion.h2>
+      <p className="mt-4 text-body text-text-secondary max-w-lg mx-auto">
+        Every dead end is captured, verified and ranked by real reuse — so the
+        next run starts with the fix, not the failure.
+      </p>
+      <div className="mt-6">
+        <a href="/api/auth/github" className="pill-fill inline-flex items-center gap-1.5 px-5 py-2 text-small font-medium">
+          Get started
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+            <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
+      </div>
+    </section>
+  );
+}
+
 export function WhyItMatters() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-section">
