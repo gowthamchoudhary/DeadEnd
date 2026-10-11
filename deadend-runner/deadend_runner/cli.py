@@ -10,7 +10,6 @@ import json
 import os
 import platform
 import subprocess
-import sys
 
 import httpx
 import typer
@@ -19,8 +18,15 @@ from .adapters import ADAPTERS, Limits, get as get_adapter
 from .tracing import RunTrace
 
 app = typer.Typer(no_args_is_help=True)
-agents_app = typer.Typer(help="list / inspect supported agents")
+agents_app = typer.Typer(help="list / inspect supported agents", invoke_without_command=True)
 app.add_typer(agents_app, name="agents")
+
+
+@agents_app.callback()
+def _agents_default(ctx: typer.Context):
+    """`deadend-runner agents` (no subcommand) = `agents list`."""
+    if ctx.invoked_subcommand is None:
+        agents_list()
 
 from . import setup as setup_mod  # noqa: E402
 
@@ -169,6 +175,20 @@ def run(
                 "tokens_out": result.tokens_out,
                 "duration": duration_s,
                 "context_used": bool(pack["dead_ends"] or pack["fixes"])})
+            # reuse attribution: when the run succeeded and a known fix was
+            # retrieved, credit the top entry (agent name rides in the run
+            # record; /runs already stores agent per run).
+            if tests_ok and retrieve.get("results"):
+                top = retrieve["results"][0]
+                eid = top.get("entry_id")
+                if eid:
+                    try:
+                        _post("/reuse", {"entry_id": eid, "run_id": run_id,
+                                         "outcome": "success", "kind": "real",
+                                         "env_fingerprint": _fingerprint()})
+                        typer.echo(f"reuse credited: {eid}")
+                    except Exception as ex:
+                        typer.echo(f"reuse credit failed (non-fatal): {ex}", err=True)
             typer.echo(f"run {run_id}: {status} (agent={a.AGENT}, "
                        f"model={result.model}, "
                        f"tokens={result.tokens_in}/{result.tokens_out})")
@@ -237,41 +257,31 @@ def mcp_config(
     repo: str = typer.Option(".", "--repo"),
 ):
     """Print (or --write into the repo) the exact MCP config for that agent."""
-    import sys as _sys
     from .setup import mcp_config_for
     a = get_adapter(agent)
     command = ["deadend-mcp"]
-    if not _sys.modules.get("deadend_runner.mcp_server"):
-        # fall back to running via python -m when the script entrypoint
-        # is not on PATH (pipx installs expose `deadend-mcp`)
-        pass
     cfg = mcp_config_for(a.AGENT, command)
-    # wrap into the full file content the agent expects
     if cfg["format"] == "toml":
         lines = ["# DeadEnd MCP server (agent-agnostic; stdio)"]
         for name, srv in cfg["toml"]["mcp_servers"].items():
             lines.append(f"[mcp_servers.{name}]")
             lines.append(f"command = {srv['command']!r}")
             lines.append("args = [" + ", ".join(repr(x) for x in srv["args"]) + "]")
-            rendered = "\n".join(lines) + "\n"
+        rendered = "\n".join(lines) + "\n"
         typer.echo(f"# write into {cfg['path']} (Codex TOML format; "
                    "https://developers.openai.com/codex/config)")
         typer.echo(rendered)
+        body = rendered
     else:
-        if cfg["path"] == "opencode.json":
-            rendered = json.dumps(cfg["config"], indent=2) + "\n"
-        else:
-            rendered = json.dumps(cfg["config"], indent=2) + "\n"
-        typer.echo(f"// write into {cfg['path']} ({a.AGENT}; JSON format)")
+        # valid JSON only — no comment lines (JSON has no comments)
+        rendered = json.dumps(cfg["config"], indent=2) + "\n"
+        typer.echo(f"# write into {cfg['path']} ({a.AGENT}; JSON format: "
+                   f"{'https://opencode.ai/docs/mcp-servers/' if cfg['path'] == 'opencode.json' else 'https://code.claude.com/docs/en/mcp'})")
         typer.echo(rendered)
+        body = rendered
     if write:
-        import os
         target = os.path.join(os.path.abspath(repo), cfg["path"])
-        if cfg["format"] == "toml":
-            body = rendered.split("\n", 1)[1]
-        else:
-            body = ("// DeadEnd MCP server\n" + rendered)
-        os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+        os.makedirs(os.path.dirname(os.path.abspath(target)) or ".", exist_ok=True)
         existing = open(target).read() if os.path.exists(target) else ""
         with open(target, "w") as f:
             f.write(existing + ("\n" if existing.strip() else "") + body)
