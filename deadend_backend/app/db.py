@@ -51,6 +51,28 @@ def create_all():
     with get_engine().begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
+        # _ensure_column: add columns to existing tables without clobbering
+        # data (create_all only creates missing tables, not missing columns).
+        def ensure_column(table: str, ddl: str):
+            col = ddl.split()[0]
+            try:
+                exists = conn.execute(text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"),
+                    {"t": table, "c": col}).scalar()
+                if not exists:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {ddl}"))
+                    log.info("added %s.%s", table, col)
+            except Exception:
+                log.warning("column ensure failed for %s.%s", table, col,
+                            exc_info=True)
+
+        # runs: agent telemetry columns (added post-launch; all nullable)
+        for ddl in ("agent_version TEXT", "model TEXT",
+                    "tokens_in INTEGER", "tokens_out INTEGER",
+                    "duration DOUBLE PRECISION"):
+            ensure_column("runs", ddl)
+
         # Legacy databases may have `embedding` as TEXT (pre-pgvector model).
         # Table is empty/col nullable at this stage: safe to drop and recreate
         # as vector(768). Failures here are non-fatal — app still starts.
