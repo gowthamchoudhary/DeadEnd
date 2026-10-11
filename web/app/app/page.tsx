@@ -1,225 +1,176 @@
 "use client";
 
-/** /app — protected dashboard. Server-side 401 guard via useMe (redirect
- * to /login). First-time users get onboarding: accept a pending invite,
- * create a team, or continue solo (auto personal team is created by the
- * client via POST /teams, then set active). */
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import useSWR from "swr";
+/** Overview — every number comes from GET /me/overview. Anything the
+ * backend reports as null renders as "no data yet": nothing is invented,
+ * no placeholder statistics. */
 import Link from "next/link";
-import { api, UnauthorizedError } from "@/lib/api";
-import { useMe } from "@/lib/useApi";
-import { DeadEndMark } from "@/components/Nav";
-import type { Overview, InviteItem, TokenItem, TeamSettings } from "@/lib/api";
+import useSWR from "swr";
+import { api, type Overview } from "@/lib/api";
+import { useTeam } from "@/lib/team";
+import {
+  Card, Empty, ErrorNote, PageHead, SectionTitle, Skeleton, SkeletonRows,
+  StatusDot, fmt,
+} from "@/components/dashboard/ui";
 
-export default function AppPage() {
-  const { me, loading, unauthorized } = useMe({ redirectOn401: "/login" });
-  const [activeTeam, setActiveTeam] = useState<string>("");
-  const team = activeTeam || me?.teams[0]?.team_id || "";
+export default function OverviewPage() {
+  const { teamId } = useTeam();
+  const { data: ov, error, isLoading } = useSWR<Overview, Error>(
+    "overview", api.overview, { refreshInterval: 20000 });
 
-  return (
-    <main className="min-h-screen bg-ink-950">
-      <header className="border-b border-line-900">
-        <div className="mx-auto max-w-6xl px-6 h-nav flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <DeadEndMark /> DeadEnd
-          </Link>
-          <div className="flex items-center gap-4">
-            {me && <span className="text-small text-text-secondary">{me.login}</span>}
-            <button onClick={() => { location.href = "/signout"; }}
-              className="pill-outline text-small px-3 py-1">Sign out</button>
-          </div>
+  if (isLoading) {
+    return (
+      <div className="space-y-4" aria-busy="true">
+        <Skeleton className="h-8 w-56" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
         </div>
-      </header>
-
-      {loading && <p className="p-10 text-text-muted text-small">loading…</p>}
-      {unauthorized && null}
-      {me && (
-        team || me.teams.length
-          ? <Dashboard teamId={team} me={me} setActiveTeam={setActiveTeam} />
-          : <Onboarding meId={me.id} onTeam={(id) => setActiveTeam(id)} />
-      )}
-    </main>
-  );
-}
-
-/* ------------------------------------------------------------- onboarding */
-function Onboarding({ meId, onTeam }: { meId: string; onTeam: (teamId: string) => void }) {
-  const { data: invites, mutate: refetchInvites } = useSWR<InviteItem[], Error>("invites", api.invites, { shouldRetryOnError: false });
-  const [busy, setBusy] = useState(false);
-  const router = useRouter();
-
-  async function accept(id: string) {
-    setBusy(true);
-    try {
-      const r = await api.acceptInvite(id);
-      if (r?.status === "accepted") { await refetchInvites(); onTeam(id); }
-    } finally { setBusy(false); }
-  }
-  async function createTeam(solo: boolean) {
-    setBusy(true);
-    try {
-      const name = solo ? `solo-${meId.slice(0, 6)}` : prompt("Team name") || "";
-      if (!name) return;
-      const r = await fetch("/api/teams", {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }) });
-      if (r.ok) onTeam((await r.json()).team_id);
-    } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="mx-auto max-w-xl px-6 py-20 text-center">
-      <h1 className="text-h2 font-bold mb-3">Welcome to DeadEnd</h1>
-      <p className="text-body text-text-secondary mb-10">
-        Join a team, create one, or work solo (we&apos;ll set up a personal team).
-      </p>
-      <div className="grid gap-4">
-        {(invites ?? []).length > 0 && (invites ?? []).map((inv) => (
-          <div key={inv.invite_id} className="border border-line-800 rounded-card bg-ink-900 p-5 flex items-center justify-between">
-            <div className="text-left">
-              <div className="text-body font-medium">Invite to {inv.team_name}</div>
-              <div className="text-tiny text-text-muted">as {inv.role}</div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => accept(inv.invite_id)} disabled={busy}
-                className="pill-fill px-4 py-1.5 text-small">Accept</button>
-              <button onClick={async () => { await api.declineInvite(inv.invite_id); refetchInvites(); }}
-                className="pill-outline px-4 py-1.5 text-small">Decline</button>
-            </div>
-          </div>
-        ))}
-        <button onClick={() => createTeam(false)} disabled={busy}
-          className="border border-line-800 rounded-card bg-ink-900 p-5 text-body font-medium hover:border-line-700">
-          Create a team
-        </button>
-        <button onClick={() => createTeam(true)} disabled={busy}
-          className="border border-line-800 rounded-card bg-ink-850 p-5 text-small text-text-secondary hover:border-line-700">
-          Continue solo — create my personal team
-        </button>
+        <SkeletonRows n={3} />
       </div>
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------------- panels */
-function Dashboard({ teamId, me, setActiveTeam }: {
-  teamId: string; me: { login: string; teams: { team_id: string; role: string }[] };
-  setActiveTeam: (id: string) => void;
-}) {
-  const { data: overview, error: ovErr } = useSWR<Overview, Error>
-    (["overview", teamId], ([, t]) => api.overview() /* overview is teamless server-side; team filter applied client-side by recent runs */);
-  const { data: settings } = useSWR<TeamSettings, Error>
-    (teamId ? ["settings", teamId] : null, ([, t]) => api.teamSettings(t as string));
-  const { data: tokens, mutate: refetchTokens } = useSWR<TokenItem[], Error>("tokens", api.tokens);
-  const [savingShare, setSavingShare] = useState(false);
-
-  async function setShare(v: TeamSettings["default_share"]) {
-    if (!teamId) return;
-    setSavingShare(true);
-    try { await api.setTeamShare(teamId, v); } finally { setSavingShare(false); }
+    );
   }
-  const runTokens = overview?.runs?.total_tokens ?? 0;
+
+  const entries = ov?.entries ?? null;
+  const runs = ov?.runs ?? null;
+  const nothingYet = !entries && !runs;
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10 space-y-10">
-      {/* team switch + share policy */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-h3 font-bold">Overview</h2>
-          <div className="flex items-center gap-2">
-            {me.teams.length > 1 && (
-              <select value={teamId} onChange={(e) => setActiveTeam(e.target.value)}
-                className="bg-ink-800 border border-line-800 rounded-chip text-small p-1.5">
-                {me.teams.map((t) => <option key={t.team_id} value={t.team_id}>{t.team_id}</option>)}
-              </select>
+    <div className="space-y-8">
+      <PageHead title="Overview" sub="Counts reported by the backend. Null means the data does not exist yet — it is never filled in." />
+
+      <ErrorNote error={error} />
+
+      {nothingYet && !error && (
+        <Empty
+          title="Nothing recorded yet"
+          body="Once your first agent run records a failure, or the extension captures a memory, these cards fill in with real numbers."
+          cta={{ label: "How to get started", href: "#get-started" }}
+        />
+      )}
+
+      {/* stat cards — null → "no data yet" */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label="private entries" value={entries ? fmt.num(entries.private) : null} />
+        <Stat label="global entries" value={entries ? fmt.num(entries.global_reused) : null} />
+        <Stat label="verified" value={entries ? fmt.num(entries.verified) : null} />
+        <Stat label="runs" value={runs ? fmt.num(runs.total) : null} />
+        <Stat label="success rate" value={fmt.pct(runs?.success_rate ?? null)} />
+        <Stat label="tokens used" value={fmt.bytes(runs?.total_tokens ?? null)} />
+        <Stat label="time saved (real reuse)" value={fmt.dur(runs?.time_saved_seconds ?? null)} />
+        <Stat label="team" value={teamId ? "active" : null} hint={teamId ? undefined : "no team"} />
+      </div>
+
+      {runs?.note && <p className="text-tiny text-text-muted -mt-4">{runs.note}</p>}
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* repeated failures */}
+        <section>
+          <SectionTitle right={<Link href="/app/memories" className="text-tiny text-text-muted hover:text-text-secondary">all memories →</Link>}>
+            Repeated failures
+          </SectionTitle>
+          <Card className="divide-y divide-line-900">
+            {(ov?.repeated_failures ?? []).map((f) => (
+              <Link key={f.signature_hash} href="/app/memories"
+                className="flex items-center gap-3 px-4 py-3 hover:bg-ink-850 transition-colors">
+                <span className="font-mono text-tiny text-text-muted w-8 shrink-0">×{f.count}</span>
+                <span className="text-small text-text-secondary truncate">{f.title}</span>
+                <span className="ml-auto font-mono text-tiny text-text-muted shrink-0">
+                  {f.signature_hash.slice(0, 8)}
+                </span>
+              </Link>
+            ))}
+            {ov && !ov.repeated_failures?.length && (
+              <p className="px-4 py-6 text-small text-text-muted">
+                No signature has failed twice yet — repetition is what this is for.
+              </p>
             )}
-            <span className="text-tiny text-text-muted">sharing</span>
-            <select value={settings?.default_share ?? "off"} disabled={savingShare}
-              onChange={(e) => setShare(e.target.value as TeamSettings["default_share"])}
-              className="bg-ink-800 border border-line-800 rounded-chip text-small p-1.5">
-              <option value="off">off</option>
-              <option value="team">team</option>
-              <option value="global-after-approval">global-after-approval</option>
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat k="private entries" v={overview?.entries?.private} />
-          <Stat k="verified" v={overview?.entries?.verified} />
-          <Stat k="runs" v={overview?.runs?.total} />
-          <Stat k="success rate"
-            v={overview?.runs?.success_rate != null
-              ? `${Math.round(overview.runs.success_rate * 100)}%`
-              : (overview?.runs && overview.runs.total === 0 ? null : undefined)} />
-          <Stat k="tokens" v={runTokens || null} />
-          <Stat k="time saved (est.)"
-            v={overview?.runs?.time_saved_seconds != null
-              ? `${Math.round(overview.runs.time_saved_seconds / 60)} min`
-              : undefined} />
-          <Stat k="global reused" v={overview?.entries?.global_reused} />
-          <Stat k="api tokens" v={tokens?.filter((t) => !t.revoked).length || 0} />
-        </div>
-        {ovErr && !(ovErr instanceof UnauthorizedError) && (
-          <p className="text-tiny text-brand-danger mt-2">{ovErr.message}</p>
-        )}
-      </section>
+          </Card>
+        </section>
 
-      {/* recent runs */}
-      <section>
-        <h2 className="text-h3 font-bold mb-4">Recent runs</h2>
-        <div className="border border-line-800 rounded-card bg-ink-900 divide-y divide-line-900">
-          {(overview?.recent_runs ?? []).map((r) => (
-            <div key={r.run_id} className="px-4 py-2.5 flex items-center gap-3 text-small">
-              <span className={`w-1.5 h-1.5 rounded-full ${r.status === "success" ? "bg-brand-success" : r.status === "running" ? "bg-amber-300" : "bg-brand-danger"}`} />
-              <code className="text-tiny font-mono text-text-muted">{r.run_id.slice(0, 8)}</code>
-              <span className="text-text-secondary">{r.task}</span>
-              <span className="ml-auto text-tiny text-text-muted font-mono">{r.agent}</span>
-            </div>
-          ))}
-          {!overview?.recent_runs?.length && (
-            <div className="px-4 py-6 text-small text-text-muted">No runs yet — install the extension or run the runner.</div>
-          )}
-        </div>
-      </section>
+        {/* recent runs */}
+        <section>
+          <SectionTitle right={<Link href="/app/runs" className="text-tiny text-text-muted hover:text-text-secondary">all runs →</Link>}>
+            Recent runs
+          </SectionTitle>
+          <Card className="divide-y divide-line-900">
+            {(ov?.recent_runs ?? []).map((r) => (
+              <Link key={r.run_id} href={`/app/runs/${r.run_id}`}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-ink-850 transition-colors">
+                <StatusDot status={r.status} />
+                <span className="text-small text-text-secondary truncate">{r.task}</span>
+                <span className="ml-auto font-mono text-tiny text-text-muted shrink-0">{r.agent}</span>
+              </Link>
+            ))}
+            {ov && !ov.recent_runs?.length && (
+              <p className="px-4 py-6 text-small text-text-muted">
+                No runs yet — start one with the runner or the VS Code extension.
+              </p>
+            )}
+          </Card>
+        </section>
+      </div>
 
-      {/* tokens */}
-      <section>
-        <h2 className="text-h3 font-bold mb-4">API tokens</h2>
-        <div className="border border-line-800 rounded-card bg-ink-900 divide-y divide-line-900">
-          {(tokens ?? []).map((t) => (
-            <div key={t.token_id} className="px-4 py-2.5 flex items-center gap-3 text-small">
-              <span className="text-text-secondary">{t.label || "token"}</span>
-              <span className="text-tiny text-text-muted font-mono">
-                {new Date(t.created_at).toLocaleDateString()}</span>
-              {t.revoked ? <span className="text-tiny text-text-muted">revoked</span> : (
-                <button onClick={async () => { await api.revokeToken(t.token_id); refetchTokens(); }}
-                  className="ml-auto pill-outline text-tiny px-3 py-0.5">revoke</button>
-              )}
-            </div>
-          ))}
-          {!tokens?.length && (
-            <div className="px-4 py-6 text-small text-text-muted">
-              No tokens yet — approve a device in the extension sign-in flow.
-            </div>
-          )}
-        </div>
+      {/* how to get started — progress from real data */}
+      <section id="get-started">
+        <SectionTitle>How to get started</SectionTitle>
+        <Card className="divide-y divide-line-900">
+          <Step done title="Signed in"
+            detail={`GitHub identity: ${ov?.teams?.length ? "you are in a team" : "no team yet"}`}
+            href={undefined} />
+          <Step done={!!ov?.tokens} title="Extension connected"
+            detail={ov?.tokens
+              ? "An API token exists for your account."
+              : "Install the VS Code extension and approve the device code — that creates your first token."}
+            href="/app/settings" linkLabel="Settings" />
+          <Step done={!!runs?.total} title="First run recorded"
+            detail={runs?.total ? `${runs.total} runs in your teams.` : "Run an agent through deadend-runner or the extension."}
+            href="/app/runs" linkLabel="Runs" />
+          <Step done={!!entries?.private} title="First memory stored"
+            detail={entries?.private ? `${entries.private} private memories.` : "A failed attempt with a verified fix becomes a memory."}
+            href="/app/memories" linkLabel="Memories" />
+        </Card>
       </section>
     </div>
   );
 }
 
-function Stat({ k, v }: { k: string; v?: number | string | null }) {
+function Stat({ label, value, hint }: { label: string; value: string | null; hint?: string }) {
   return (
     <div className="border border-line-800 rounded-card bg-ink-900 p-4">
-      <div className="text-tiny uppercase tracking-widest text-text-muted">{k}</div>
-      <div className="text-h3 font-bold mt-1">
-        {v === null ? <span className="text-text-muted text-body">no data yet</span>
-          : v === undefined ? <span className="text-text-muted text-body">—</span>
-          : v}
+      <div className="text-tiny uppercase tracking-widest text-text-muted">{label}</div>
+      <div className="mt-1.5 text-h3 font-bold">
+        {value ?? <span className="text-body font-normal text-text-muted">no data yet</span>}
       </div>
+      {hint && <div className="text-tiny text-text-muted mt-0.5">{hint}</div>}
+    </div>
+  );
+}
+
+function Step({ done, title, detail, href, linkLabel }: {
+  done: boolean; title: string; detail: string; href?: string; linkLabel?: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 px-4 py-3.5">
+      <span className={`mt-1 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+        done ? "border-brand-success text-brand-success" : "border-line-700"}`}
+        aria-hidden>
+        {done && (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M2 5.2l2 2 4-4.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        )}
+      </span>
+      <div className="min-w-0">
+        <div className="text-small font-medium flex items-center gap-2">
+          {title}
+          <span className="text-tiny text-text-muted font-normal">{done ? "done" : "pending"}</span>
+        </div>
+        <p className="text-tiny text-text-muted mt-0.5">{detail}</p>
+      </div>
+      {href && (
+        <Link href={href} className="ml-auto text-tiny text-text-secondary hover:text-text-primary shrink-0">
+          {linkLabel ?? "open"} →
+        </Link>
+      )}
     </div>
   );
 }
