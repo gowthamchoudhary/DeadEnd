@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* gradient stops — from web/tokens.ts (sampled) */
+  --g-lavender: #c9b7e0;
+  --g-lavender-soft: #d8c9ea;
+  --g-blue: #7c96e8;
+  --g-blue-deep: #4f6ad4;
+  --g-peach: #f0b3a4;
+  --g-peach-warm: #f6c9ae;
+  --g-cream: #f3e6d8;
+  --g-amber: #e2b487;
+  /* surfaces */
+  --ink-950: #0c0d10;
+  --ink-900: #111216;
+  --ink-850: #15171c;
+  --ink-800: #1a1c22;
+  --ink-750: #20232a;
+  --ink-700: #262a32;
+  --line-900: #2a2d35;
+  --line-800: #383c46;
+  --text-primary: #f2f3f5;
+  --text-secondary: #b9bdc7;
+  --text-muted: #7d8290;
+  --success: #4ade80;
+  --danger: #f87171;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--ink-950);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* film grain overlay (SVG feTurbulence, fixed, non-interactive) */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 240px 240px;
+}
+
+/* hatched divider band */
+.hatch {
+  position: relative;
+  height: 56px;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 2px,
+    transparent 2px,
+    transparent 12px
+  );
+  border-top: 1px solid var(--line-900);
+  border-bottom: 1px solid var(--line-900);
+}
+
+/* outlined pill */
+.pill-outline {
+  border: 1px solid var(--line-800);
+  color: var(--text-primary);
+  border-radius: 999px;
+}
+.pill-outline:hover {
+  border-color: var(--text-muted);
+}
+
+/* filled pill (white) */
+.pill-fill {
+  background: #ffffff;
+  color: #17181c;
+  border-radius: 999px;
+}
+.pill-fill:hover {
+  background: #e6e6e6;
+}
+
+::selection {
+  background: rgba(124, 150, 232, 0.4);
+}
