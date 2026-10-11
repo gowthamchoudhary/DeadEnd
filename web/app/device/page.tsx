@@ -5,11 +5,29 @@
  * Note: the backend has approve only (extension flow has its own deny via
  * timeout) — Deny here simply closes the flow on our side. */
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useMe, api } from "@/lib/useApi";
 import { DeadEndMark } from "@/components/Nav";
 
+/** Next 14 static generation calls useSearchParams in the page component
+ * during prerender — without a Suspense boundary above it, `next build`
+ * (and therefore Vercel) fails. The hook lives in DeviceFlow, which is
+ * mounted *inside* the boundary. */
 export default function DevicePage() {
+  return (
+    <Suspense
+      fallback={
+        <Shell>
+          <p className="text-small text-text-muted">loading…</p>
+        </Shell>
+      }
+    >
+      <DeviceFlow />
+    </Suspense>
+  );
+}
+
+function DeviceFlow() {
   const sp = useSearchParams();
   const code = sp.get("code") ?? "";
   const { me, loading, unauthorized } = useMe({ redirectOn401: "/login" });
