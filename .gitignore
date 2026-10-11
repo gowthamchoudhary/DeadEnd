@@ -18,4 +18,8 @@ __pycache__/
 
 # node
 node_modules/
+
+# extension build output
+extension/out/
+extension/*.vsix
 dist/
