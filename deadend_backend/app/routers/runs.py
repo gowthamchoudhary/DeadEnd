@@ -101,18 +101,41 @@ def summarize_run(run_id: str, body: RunSummaryIn, u=Depends(current_user),
     return {"run_id": run_id, "agent": r.agent, "model": r.model}
 
 
+def _run_view(r: Run, with_pack: bool = False) -> dict:
+    cp = r.context_pack or {}
+    return {"run_id": r.id, "team_id": r.team_id, "task": r.task[:200],
+            "agent": r.agent, "agent_version": r.agent_version, "model": r.model,
+            "tokens_in": r.tokens_in, "tokens_out": r.tokens_out,
+            "duration": r.duration, "project_id": r.project_id,
+            "status": r.status, "context_used": bool(cp.get("context_used")),
+            # the full pack can be large — detail view only, not the 100-row list
+            "context_pack": cp or None if with_pack else None,
+            "started_at": r.started_at.isoformat(),
+            "finished_at": r.finished_at.isoformat() if r.finished_at else None}
+
+
+@router.get("/{run_id}")
+def get_run(run_id: str, u=Depends(current_user), db: Session = Depends(get_db)):
+    """One run + its events, for the run detail page (the live panel then
+    follows /runs/{id}/stream)."""
+    r = db.get(Run, run_id)
+    if not r:
+        raise HTTPException(404, "run not found")
+    require_team(db, r.team_id, u.id)
+    events = db.execute(select(RunEvent).where(RunEvent.run_id == run_id)
+                        .order_by(RunEvent.seq)).scalars().all()
+    out = _run_view(r, with_pack=True)
+    out["events"] = [{"seq": e.seq, "phase": e.phase, "payload": e.payload,
+                      "at": e.at.isoformat()} for e in events]
+    return out
+
+
 @router.get("")
 def list_runs(team_id: str, u=Depends(current_user), db: Session = Depends(get_db)):
     require_team(db, team_id, u.id)
     rows = db.execute(select(Run).where(Run.team_id == team_id)
                       .order_by(Run.started_at.desc()).limit(100)).scalars().all()
-    return [{"run_id": r.id, "task": r.task[:200], "agent": r.agent,
-             "agent_version": r.agent_version, "model": r.model,
-             "tokens_in": r.tokens_in, "tokens_out": r.tokens_out,
-             "duration": r.duration, "project_id": r.project_id,
-             "status": r.status, "started_at": r.started_at.isoformat(),
-             "finished_at": r.finished_at.isoformat() if r.finished_at else None}
-            for r in rows]
+    return [_run_view(r) for r in rows]
 
 
 @router.get("/{run_id}/stream")
