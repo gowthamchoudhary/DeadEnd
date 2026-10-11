@@ -216,6 +216,34 @@ class Contribution(Base):
     decided_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
+class TeamEconomics(Base):
+    """Per-team economics inputs, ALL user-entered assumptions:
+    model price per million tokens, infra monthly costs, price tiers,
+    runway inputs, and the published cfo.ai business-plan URL.
+    Measured data (runs/tokens/reuse) always comes from runs/reuse_events,
+    never from here — this table only stores the user's declared numbers."""
+    __tablename__ = "team_economics"
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), primary_key=True)
+    # USD per 1M tokens, per agent/model name (user-entered)
+    prices: Mapped[dict] = mapped_column(JSONB, default=dict)        # {"claude-code": {"per_mtok_in": 3.0, "per_mtok_out": 15.0}, ...}
+    # monthly infra assumptions (user-entered USD)
+    render_monthly: Mapped[float] = mapped_column(Float, default=0.0)
+    supabase_monthly: Mapped[float] = mapped_column(Float, default=0.0)
+    # pricing planner tiers (user-entered)
+    tiers: Mapped[dict] = mapped_column(JSONB, default=dict)         # [{"name":"Free","seats":10,"price":0,"runs_per_seat":20}, ...]
+    # runway assumptions (user-entered USD)
+    cash_on_hand: Mapped[float] = mapped_column(Float, default=0.0)
+    burn_monthly: Mapped[float] = mapped_column(Float, default=0.0)
+    # per-growth-scenario multiplier (base 1.0; growth e.g. 2.0)
+    growth_x: Mapped[float] = mapped_column(Float, default=2.0)
+    # published cfo.ai business plan URL (empty = not set, landing link hidden)
+    business_plan_url: Mapped[str] = mapped_column(Text, default="")
+    business_plan_title: Mapped[str] = mapped_column(String(200), default="")
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True),
+                                                    server_default=func.now(),
+                                                    onupdate=func.now())
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)

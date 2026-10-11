@@ -6,9 +6,9 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .scan_limits import check_body
-from .routers import (auth, contributions, entries, ingest, invites, misc,
-                      overview, promotion, projects, reuse, retrieval, runs,
-                      setup_status, stats, teams)
+from .routers import (auth, contributions, economics, entries, ingest,
+                      invites, misc, overview, promotion, projects, reuse,
+                      retrieval, runs, setup_status, stats, teams)
 
 S = get_settings()
 
@@ -45,5 +45,5 @@ for r in (auth.router, teams.router, retrieval.router, ingest.router,
           entries.router, runs.router, reuse.router, verify_router,
           promotion.router, misc.router, stats.router,
           invites.router, projects.router, contributions.router,
-          overview.router, setup_status.router):
+          overview.router, setup_status.router, economics.router):
     app.include_router(r)
