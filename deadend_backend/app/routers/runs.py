@@ -28,6 +28,17 @@ class EventIn(BaseModel):
     payload: dict = Field(default_factory=dict)
 
 
+class RunSummaryIn(BaseModel):
+    """Agent telemetry reported by deadend-runner after an attempt."""
+    agent: str
+    agent_version: str | None = None
+    model: str | None = None
+    tokens_in: int | None = Field(default=None, ge=0)
+    tokens_out: int | None = Field(default=None, ge=0)
+    duration: float | None = Field(default=None, ge=0)
+    context_used: bool = False
+
+
 @router.post("")
 def create_run(body: RunIn, u=Depends(current_user), db: Session = Depends(get_db)):
     require_team(db, body.team_id, u.id)
@@ -64,12 +75,34 @@ def finish_run(run_id: str, status: str, u=Depends(current_user),
     return {"run_id": run_id, "status": status}
 
 
+@router.post("/{run_id}/summary")
+def summarize_run(run_id: str, body: RunSummaryIn, u=Depends(current_user),
+                  db: Session = Depends(get_db)):
+    """Record agent/model/tokens/duration + whether context was applied.
+    Powers GET /stats/agents comparisons (with vs without context)."""
+    r = _owned_run(db, run_id, u.id)
+    r.agent = body.agent
+    r.agent_version = body.agent_version
+    r.model = body.model
+    r.tokens_in = body.tokens_in
+    r.tokens_out = body.tokens_out
+    r.duration = body.duration
+    cp = dict(r.context_pack or {})
+    cp["context_used"] = body.context_used
+    r.context_pack = cp
+    db.commit()
+    return {"run_id": run_id, "agent": r.agent, "model": r.model}
+
+
 @router.get("")
 def list_runs(team_id: str, u=Depends(current_user), db: Session = Depends(get_db)):
     require_team(db, team_id, u.id)
     rows = db.execute(select(Run).where(Run.team_id == team_id)
                       .order_by(Run.started_at.desc()).limit(100)).scalars().all()
     return [{"run_id": r.id, "task": r.task[:200], "agent": r.agent,
+             "agent_version": r.agent_version, "model": r.model,
+             "tokens_in": r.tokens_in, "tokens_out": r.tokens_out,
+             "duration": r.duration,
              "status": r.status, "started_at": r.started_at.isoformat(),
              "finished_at": r.finished_at.isoformat() if r.finished_at else None}
             for r in rows]
