@@ -4,6 +4,7 @@
  * directions), members with roles, the team sharing policy, and the
  * projects list with how many memories each holds. */
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { api, type EntryView, type MemberItem, type TeamInviteItem } from "@/lib/api";
 import { useTeam } from "@/lib/team";
@@ -15,7 +16,8 @@ import {
 const ROLES = ["owner", "admin", "member"] as const;
 
 export default function TeamsPage() {
-  const { me, teams, teamId, role, refreshTeams } = useTeam();
+  const { me, teams, teamId, role, refreshTeams, setProjectFilter } = useTeam();
+  const router = useRouter();
   const canAdmin = role === "owner" || role === "admin";
   const [note, setNote] = useState<string>("");
 
@@ -182,14 +184,39 @@ export default function TeamsPage() {
         </SectionTitle>
         <Card className="divide-y divide-line-900">
           {(projects ?? []).map((p) => {
-            const count = (entries?.entries ?? []).filter((e: EntryView) => e.project_id === p.project_id).length;
+            const owned = (entries?.entries ?? []).filter((e: EntryView) => e.project_id === p.project_id);
             return (
-              <div key={p.project_id} className="px-4 py-3 flex items-center gap-3">
-                <span className="text-small text-text-primary">{p.name}</span>
-                {p.repo_url && <span className="text-tiny text-text-muted font-mono truncate max-w-[14rem]">{p.repo_url}</span>}
-                <span className="ml-auto text-tiny text-text-muted">
-                  {count} memor{count === 1 ? "y" : "ies"}
-                </span>
+              <div key={p.project_id} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-small text-text-primary">{p.name}</span>
+                  {p.repo_url && <span className="text-tiny text-text-muted font-mono truncate max-w-[14rem]">{p.repo_url}</span>}
+                  <span className="ml-auto text-tiny text-text-muted">
+                    {owned.length} memor{owned.length === 1 ? "y" : "ies"}
+                  </span>
+                  <button
+                    onClick={() => { setProjectFilter(p.project_id); router.push("/app/memories"); }}
+                    className="text-tiny text-text-secondary hover:text-text-primary shrink-0">
+                    view entries →
+                  </button>
+                </div>
+                {owned.length > 0 && (
+                  <ul className="mt-1.5 pl-3 border-l border-line-900 space-y-1">
+                    {owned.slice(0, 5).map((e) => (
+                      <li key={e.id}>
+                        <button
+                          onClick={() => router.push(`/app/memories/${e.id}`)}
+                          className="text-tiny text-text-muted hover:text-text-secondary text-left truncate block max-w-full">
+                          {e.title || e.signature_normalized.slice(0, 70) || e.redacted_error_text.slice(0, 70)}
+                        </button>
+                      </li>
+                    ))}
+                    {owned.length > 5 && (
+                      <li className="text-tiny text-text-muted">
+                        + {owned.length - 5} more in the latest 100
+                      </li>
+                    )}
+                  </ul>
+                )}
               </div>
             );
           })}
