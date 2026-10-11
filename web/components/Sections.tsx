@@ -3,7 +3,30 @@
 /** Content sections. Dark bordered cards, isometric SVG illustrations,
  * pill buttons, type scale — all styled from tokens via Tailwind theme. */
 import { motion } from "framer-motion";
+import useSWR from "swr";
+import { BACKEND_PROXY } from "@/lib/api";
 import { IllusLoop, IllusCapture, IllusTrace, IllusCheckpoint, IllusCost, IllusContext } from "./Illustrations";
+
+interface PlanLink { team_id: string; title: string | null; url: string }
+/** Live link to the first published cfo.ai plan (GET /economics/plan is
+ * public). Renders NOTHING until some team has published a URL — the card
+ * copy stays exactly the same. */
+function PlanBadge() {
+  const { data } = useSWR<PlanLink[]>("published-plans",
+    async () => {
+      const r = await fetch(`${BACKEND_PROXY}/economics/plan`);
+      if (!r.ok) throw new Error("plans unavailable");
+      return r.json();
+    }, { shouldRetryOnError: false });
+  const plan = data?.[0];
+  if (!plan) return null;
+  return (
+    <a href={plan.url} target="_blank" rel="noreferrer"
+      className="pill-outline inline-block px-4 py-1.5 text-small mt-4">
+      {plan.title || "Read the business plan"} →
+    </a>
+  );
+}
 
 /* shared card shell */
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -197,6 +220,7 @@ const ROWS = [
     without: "Agent spend is a vague cloud number nobody can tie to value.",
     with_: "Run cost and reuse saving are visible enough to build a plan around.",
     Illus: IllusCost,
+    planLink: true,
   },
 ];
 
@@ -216,6 +240,7 @@ export function UnderTheHood() {
                   <Mini label="Without DeadEnd" tone="bad" text={r.without} />
                   <Mini label="With DeadEnd" tone="good" text={r.with_} />
                 </div>
+                {"planLink" in r && r.planLink ? <PlanBadge /> : null}
               </div>
               <div className="p-6 [direction:ltr]"><r.Illus /></div>
             </div>

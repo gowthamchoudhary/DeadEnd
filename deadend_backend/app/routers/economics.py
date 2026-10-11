@@ -236,6 +236,20 @@ def _reuses_per_run(rows: list[Run], reuse_count: int) -> float | None:
     return round(reuse_count / len(rows), 4) if len(rows) else None
 
 
+@router.get("/plan")
+def published_plans(db: Session = Depends(get_db)):
+    """PUBLIC (no auth): every team's published cfo.ai plan URL — the data
+    the landing page's "Know what it costs" card links to. Only teams that
+    deliberately saved a URL appear; hidden until one is set."""
+    rows = db.execute(
+        select(TeamEconomics)
+        .where(TeamEconomics.business_plan_url != "")
+        .order_by(TeamEconomics.updated_at.desc()).limit(20)
+    ).scalars().all()
+    return [{"team_id": r.team_id, "title": r.business_plan_title or None,
+             "url": r.business_plan_url} for r in rows]
+
+
 class PricesIn(BaseModel):
     team_id: str
     prices: dict = Field(default_factory=dict)  # {agent: {per_mtok_in, per_mtok_out}}

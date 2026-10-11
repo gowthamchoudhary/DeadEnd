@@ -116,6 +116,62 @@ export interface AgentStats {
   team_id: string;
   agents: Record<string, { all: AgentAgg; with_context: AgentAgg; without_context: AgentAgg }>;
 }
+
+/* ------------------------------------------------------------- economics */
+export interface AgentEcon {
+  runs: number;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  avg_duration_s: number | null;
+  success_rate: number | null;
+  cost_usd: number | null;
+  cost_source: "measured" | null;
+  source: "measured";
+}
+export interface ContextDelta {
+  project_id: string | null;
+  with_runs: number;
+  without_runs: number;
+  tokens_per_run_with: number | null;
+  tokens_per_run_without: number | null;
+  duration_per_run_with: number | null;
+  duration_per_run_without: number | null;
+  success_with: number;
+  success_without: number;
+}
+export interface EconTier {
+  name: string;
+  seats: number;
+  price: number;
+  runs_per_seat: number;
+}
+export interface EconomicsResp {
+  team_id: string;
+  measured: {
+    runs_total: number;
+    per_agent: Record<string, AgentEcon>;
+    tokens_per_run: number | null;
+    duration_per_run_s: number | null;
+    success_rate: number | null;
+    cost_per_run_usd: number | null;
+    cost_source: "measured" | null;
+    reuse_events: number;
+    reuses_per_run: number | null;
+    tokens_saved_per_reuse: number | null;
+    time_saved_per_reuse_s: number | null;
+    context_delta_by_project: ContextDelta[] | null;
+  };
+  assumptions: {
+    prices_per_mtok: Record<string, { per_mtok_in?: number; per_mtok_out?: number }>;
+    render_monthly_usd: number;
+    supabase_monthly_usd: number;
+    tiers: EconTier[];
+    cash_on_hand_usd: number;
+    burn_monthly_usd: number;
+    growth_x: number;
+  };
+  business_plan: { url: string | null; title: string | null };
+}
 export interface QuarantineItem {
   id: string; reasons: string[]; payload: Record<string, unknown>;
   source: string; created_at: string;
@@ -211,6 +267,22 @@ export const api = {
 
   /* stats */
   statsAgents: (teamId: string) => get<AgentStats>(`/stats/agents?team_id=${teamId}`),
+
+  /* economics */
+  economics: (teamId: string) => get<EconomicsResp>(`/economics?team_id=${teamId}`),
+  econPrices: (teamId: string) =>
+    get<{ team_id: string; prices: Record<string, { per_mtok_in?: number; per_mtok_out?: number }> }>(
+      `/economics/prices?team_id=${teamId}`),
+  putEconPrices: (teamId: string,
+                  prices: Record<string, { per_mtok_in?: number; per_mtok_out?: number }>) =>
+    req<{ team_id: string }>("/economics/prices", {
+      method: "PUT", body: JSON.stringify({ team_id: teamId, prices }) }),
+  putEconSettings: (body: {
+    team_id: string; render_monthly?: number; supabase_monthly?: number;
+    tiers?: EconTier[]; cash_on_hand?: number; burn_monthly?: number;
+    growth_x?: number; business_plan_url?: string; business_plan_title?: string;
+  }) => req<{ saved: boolean }>("/economics/settings", {
+    method: "PUT", body: JSON.stringify(body) }),
 
   /* sharing queue */
   contributions: (teamId: string, status?: string) =>
