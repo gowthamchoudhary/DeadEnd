@@ -121,7 +121,7 @@
       "properties": {
         "deadend.backendUrl": {
           "type": "string",
-          "default": "https://deadend-backend.onrender.com",
+          "default": "https://deadend-4wyx.onrender.com",
           "description": "DeadEnd backend base URL."
         },
         "deadend.runnerPath": {

@@ -163,7 +163,7 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
       const env: Record<string, string> = {
         ...process.env as Record<string, string>,
         DEADEND_BACKEND: vscode.workspace.getConfiguration().get<string>("deadend.backendUrl",
-          "https://deadend-backend.onrender.com"),
+          "https://deadend-4wyx.onrender.com"),
         DEADEND_TOKEN: token,
         ...(baseline ? {} : { DEADEND_TEAM: teamId! }),
       };

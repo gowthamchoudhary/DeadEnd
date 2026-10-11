@@ -19,6 +19,6 @@ services:
       - key: DEADEND_WEB_ORIGIN
         sync: false          # e.g. https://deadend-web.vercel.app
       - key: DEADEND_BASE_URL
-        sync: false          # e.g. https://deadend-backend.onrender.com
+        sync: false          # e.g. https://deadend-4wyx.onrender.com
       - key: DEADEND_NEATLOGS_API_KEY
         sync: false

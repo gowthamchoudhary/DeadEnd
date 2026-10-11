@@ -32,7 +32,7 @@ from . import setup as setup_mod  # noqa: E402
 
 
 def _backend() -> str:
-    return os.environ.get("DEADEND_BACKEND", "http://localhost:8000")
+    return os.environ.get("DEADEND_BACKEND", "https://deadend-4wyx.onrender.com")
 
 
 def _headers() -> dict:

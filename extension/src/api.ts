@@ -27,7 +27,7 @@ import * as http from "http";
 import * as https from "https";
 import { URL } from "url";
 
-export const BACKEND_URL_DEFAULT = "https://deadend-backend.onrender.com";
+export const BACKEND_URL_DEFAULT = "https://deadend-4wyx.onrender.com";
 
 export interface DeviceStartResp {
   device_code: string;

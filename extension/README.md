@@ -49,9 +49,10 @@ credentials on your machine; DeadEnd never reads or transmits them**:
 
 ## Settings
 
-- `deadend.backendUrl` — DeadEnd backend base URL (default: the deployed
-  Render URL; change the constant in `src/api.ts`
-  (`BACKEND_URL_DEFAULT`) or the setting to point at your deployment).
+- `deadend.backendUrl` — DeadEnd backend base URL
+  (default: `https://deadend-4wyx.onrender.com`; change the setting or
+  the constant in `src/api.ts` (`BACKEND_URL_DEFAULT`) to point at your
+  own deployment).
 - `deadend.runnerPath` — how to invoke the runner (default `deadend-runner`).
 - `deadend.dashboardUrl` — web dashboard base used by Memories → open entry.
 

@@ -15,7 +15,7 @@ import { registerCoreCommands, getOrCreateOutputChannel } from "./commands";
 
 export function activate(context: vscode.ExtensionContext): void {
   const backendUrl = vscode.workspace.getConfiguration().get<string>(
-    "deadend.backendUrl", "https://deadend-backend.onrender.com");
+    "deadend.backendUrl", "https://deadend-4wyx.onrender.com");
   const store = new DeadEndStore(context.secrets, context.globalState);
   const api = new DeadEndApi(backendUrl, async () => store.getToken());
   const auth = new AuthController(api, store);

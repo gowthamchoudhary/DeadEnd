@@ -22,7 +22,8 @@ class Backend:
         if not tok:
             raise SystemExit(
                 "DEADEND_TOKEN not set (get a token from the DeadEnd web app)")
-        return cls(os.environ.get("DEADEND_BACKEND", "http://localhost:8000"),
+        return cls(os.environ.get("DEADEND_BACKEND",
+                                  "https://deadend-4wyx.onrender.com"),
                    tok,
                    os.environ.get("DEADEND_TEAM", ""))
 
