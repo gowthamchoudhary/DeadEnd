@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://deadend-4wyx.onrender.com/$1"
+    }
+  ]
+}
