@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- DeadEnd: a road to a wall (dead end) with a fix-flag detour -->
+  <path d="M4 20V10a4 4 0 0 1 4-4h4l-2-2.5L12.5 1H18" stroke="currentColor" stroke-width="1.6" fill="none"/>
+  <rect x="14" y="1" width="8" height="7" fill="currentColor" opacity="0.35"/>
+  <path d="M4 20h3" stroke="currentColor" stroke-width="2.4"/>
+</svg>
