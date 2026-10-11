@@ -7,7 +7,6 @@ Docs (fetched 2026-10-11, not guessed):
     the plugin's own README (deadend does not guess install commands
     beyond the documented package names).
 """
-import json
 import shutil
 import subprocess
 

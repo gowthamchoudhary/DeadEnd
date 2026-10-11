@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..confidence import env_match
 from ..db import get_db
-from ..models import Entry, ReuseEvent, Run, TeamMember
+from ..models import Entry, ReuseEvent, TeamMember
 from ..security import current_user
 
 router = APIRouter(tags=["reuse"])

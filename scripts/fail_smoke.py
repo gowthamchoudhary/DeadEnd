@@ -24,7 +24,7 @@ def run():
         except Exception as e:  # noqa: BLE001
             result["attempt1_rc"] = -1
             result["attempt1_stderr"] = str(e)
-            with neatlogs.trace("attempt-1-error-record", kind="TOOL") as _e:
+            with neatlogs.trace("attempt-1-error-record", kind="TOOL"):
                 _ = str(e)
     with neatlogs.trace("attempt-2-fixed-string", kind="TOOL"):
         r = subprocess.run(["rg", "-F", "deadend", "/etc/hostname"],

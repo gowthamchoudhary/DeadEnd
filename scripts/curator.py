@@ -139,7 +139,6 @@ def env_fingerprint():
 
 # ------------------------------------------------------------------ curation
 def curate(trace, checkpoint_text, repo_path, trace_meta):
-    checkpoint_id = trace_meta.get("checkpoint_id")
     findings = extract_failures(trace)
     if checkpoint_text and not findings:
         # checkpoint-only input: use transcript text as the sole finding

@@ -17,9 +17,10 @@ from ..security import RATE, current_user
 router = APIRouter(tags=["invites"])
 
 
-def ensure_models(db: Session):
+def ensure_models(db: Session):  # noqa: ARG001 (kept for API compat; imports here to avoid circulars)
     """imports here to avoid circulars"""
-    from ..models import Invite  # noqa: F401
+    from ..models import Invite
+    return Invite
 
 
 class InviteIn(BaseModel):

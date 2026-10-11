@@ -35,7 +35,6 @@ type with line-separated messages is what every listed client accepts
 for a stdio server binary).
 """
 import json
-import os
 import sys
 
 from .client import Backend

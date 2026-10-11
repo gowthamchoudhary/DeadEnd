@@ -5,8 +5,6 @@ GET  /projects?team_id=                    (member; newest first)
 Helper get_or_create_project() is used by /runs, /runs/{id}/summary and
 /ingest when a project name (the git repo name) is supplied.
 """
-import datetime as dt
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select

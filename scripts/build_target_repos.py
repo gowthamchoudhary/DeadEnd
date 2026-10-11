@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build seeded-bug target repos (bug1..bug3). Each: real git repo, real
 bug, failing pytest on arrival, honest README, no fix committed."""
-import os, subprocess, sys, textwrap
+import os, subprocess, sys
 
 T = "/home/daytona/targets"
 
@@ -11,9 +11,7 @@ def sh(cmd, cwd):
         sys.exit(f"{cmd} in {cwd}: {r.stderr[:400]}")
 
 def git(c, cwd):
-    env = dict(os.environ)
     sh(c, cwd)
-    return r
 
 BUG1_APP = '''\
 """orders-async — order placement service (buggy)."""

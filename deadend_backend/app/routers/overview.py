@@ -9,7 +9,7 @@ settings/extension UI (revoke stays at DELETE /auth/tokens/{id}).
 """
 from collections import Counter
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

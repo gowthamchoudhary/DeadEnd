@@ -4,7 +4,7 @@ import datetime as dt
 import secrets
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 # Device-token secrecy: encrypt the plaintext device token on the DeviceCode
 # row with a key derived from DEADEND_AUTH_SECRET (PBKDF2 + Fernet). This keeps
 # the token durable across requests without plaintext secret storage.
-import base64, hashlib, os as _os
+import base64
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -40,8 +40,8 @@ def _decrypt_token(cipher: str) -> str:
 
 from ..config import get_settings
 from ..db import get_db
-   from ..models import ApiToken, AuditLog, DeviceCode, Team, TeamMember, User
-from ..security import (COOKIE_NAME, current_user, issue_session, new_api_token,
+from ..models import ApiToken, AuditLog, DeviceCode, Team, TeamMember, User
+from ..security import (current_user, issue_session, new_api_token,
                         read_session_user)
 
 S = get_settings()
@@ -104,7 +104,18 @@ def auth_callback(code: str, state: str = "", request: Request = None,
         db.add(member)
         db.commit()  # persist user + personal team before we redirect away
     else:
-        db.commit()
+        # Self-heal: a user created by an earlier login that crashed halfway
+        # may have no team membership — create their personal team now so
+        # onboarding has a team to scope tokens/devices against.
+        if not db.execute(select(TeamMember).where(TeamMember.user_id == user.id)
+                          ).scalar_one_or_none():
+            team = Team(name=f"{user.login}'s team", created_by=user.id)
+            db.add(team)
+            db.flush()
+            db.add(TeamMember(team_id=team.id, user_id=user.id, role="owner"))
+            db.commit()
+        else:
+            db.commit()
     from fastapi.responses import RedirectResponse
     resp = RedirectResponse(f"{S.web_origin.rstrip('/')}/app", status_code=302)
     issue_session(resp, user.id)

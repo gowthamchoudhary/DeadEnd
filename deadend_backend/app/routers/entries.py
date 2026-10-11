@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Entry, ReuseEvent, TeamMember
+from ..models import Entry, ReuseEvent
 from ..security import current_user, require_role
 
 router = APIRouter(tags=["entries"])

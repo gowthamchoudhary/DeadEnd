@@ -102,7 +102,6 @@ def run(
     if not a.detect():
         typer.echo(f"agent CLI not detected on this machine: {a.AGENT}", err=True)
         raise typer.Exit(1)
-    caps = a.CAPS
     if setup_capture:
         info = setup_mod.setup_agent(a.AGENT, repo_abs)
         typer.echo(f"entire: {info.get('entire')}")

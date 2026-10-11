@@ -2,7 +2,7 @@
 import datetime as dt
 import uuid
 
-from sqlalchemy import (BigInteger, Boolean, DateTime, Float, ForeignKey,
+from sqlalchemy import (Boolean, DateTime, Float, ForeignKey,
                         Index, Integer, String, Text, UniqueConstraint, func)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship

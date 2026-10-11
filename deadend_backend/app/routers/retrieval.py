@@ -15,7 +15,7 @@ from ..db import get_db
 from ..models import Entry, ReuseEvent, TeamMember
 from ..normalize import signature_hash
 from ..scans import strip_injection_from_context
-from ..security import RATE, check_rate, current_user
+from ..security import RATE, current_user
 
 S = get_settings()
 router = APIRouter(tags=["retrieval"])

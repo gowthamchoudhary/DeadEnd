@@ -6,7 +6,6 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..audit import audit
