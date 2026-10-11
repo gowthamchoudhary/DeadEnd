@@ -83,6 +83,8 @@ def run(
                               help="claude-code | codex | opencode | pi | antigravity | copilot-cli"),
     setup_capture: bool = typer.Option(False, "--setup",
                                        help="also run `entire enable --agent <name>` first"),
+    no_deadend: bool = typer.Option(False, "--no-deadend",
+                                    help="baseline run: skip retrieve + skip context injection + skip run records"),
     tests_cmd: str = typer.Option("bash run_tests.sh", "--tests-cmd",
                                   help="test command run inside the repo"),
     max_turns: int = typer.Option(25, "--max-turns"),
@@ -108,28 +110,36 @@ def run(
     limits = Limits(max_turns=max_turns, wall_timeout_s=wall_timeout_s,
                     workdir=repo_abs)
     time0 = dt.datetime.now(dt.timezone.utc)
+    retrieve: dict = {"results": []}
+    run_id: str | None = None
     with RunTrace(a.AGENT) as trace:
-        # ---- retrieve ------------------------------------------------
-        retrieve = _post("/retrieve", {
-            "team_id": team_id, "error_text": task,
-            "env_fingerprint": _fingerprint(), "task": task,
-            "include_global": True, "budget_tokens": 1500})
-        pack = _flatten(retrieve)
-        run = _post("/runs", {"team_id": team_id, "task": task,
-                              "repo_url": repo_abs, "agent": a.AGENT})
-        run_id = run.get("run_id")
-        trace.run_id = run_id
-        _post(f"/runs/{run_id}/events", {"phase": "retrieve",
-              "payload": {"entries": len(retrieve.get("results", []))}})
+        # ---- retrieve (skipped for baseline runs) ------------------------
+        if no_deadend:
+            pack = {"dead_ends": [], "constraints": [], "fixes": []}
+            typer.echo("baseline mode: DeadEnd context and records skipped")
+        else:
+            retrieve = _post("/retrieve", {
+                "team_id": team_id, "error_text": task,
+                "env_fingerprint": _fingerprint(), "task": task,
+                "include_global": True, "budget_tokens": 1500})
+            pack = _flatten(retrieve)
+            run = _post("/runs", {"team_id": team_id, "task": task,
+                                  "repo_url": repo_abs, "agent": a.AGENT})
+            run_id = run.get("run_id")
+            trace.run_id = run_id
+            _post(f"/runs/{run_id}/events", {"phase": "retrieve",
+                  "payload": {"entries": len(retrieve.get("results", []))}})
 
         # ---- inject context ------------------------------------------
-        a.inject_context(repo_abs, pack)
+        if run_id:
+            a.inject_context(repo_abs, pack)
         try:
             # ---- attempt ---------------------------------------------
             cmd = a.build_command(task, repo_abs, pack, limits)
             typer.echo(f"→ {' '.join(cmd[:3])}… (cap {wall_timeout_s}s) in {repo_abs}")
-            _post(f"/runs/{run_id}/events", {"phase": "attempt",
-                  "payload": {"attempt": 1, "cmd_head": cmd[:4]}})
+            if run_id:
+                _post(f"/runs/{run_id}/events", {"phase": "attempt",
+                      "payload": {"attempt": 1, "cmd_head": cmd[:4]}})
             timed_out = False
             proc = None
             try:
@@ -150,35 +160,38 @@ def run(
                 result = a.parse_result(proc.stdout or "", proc.stderr or "",
                                         proc.returncode)
             duration_s = (dt.datetime.now(dt.timezone.utc) - time0).total_seconds()
-            _post(f"/runs/{run_id}/events",
-                  {"phase": "attempt-done",
-                   "payload": {"rc": 124 if timed_out else proc.returncode,
-                               "tail": result.text[-1000:]}})
+            if run_id:
+                _post(f"/runs/{run_id}/events",
+                      {"phase": "attempt-done",
+                       "payload": {"rc": 124 if timed_out else proc.returncode,
+                                   "tail": result.text[-1000:]}})
 
             # ---- test -------------------------------------------------
             typer.echo(f"→ {tests_cmd}")
             t = subprocess.run([tests_cmd], cwd=repo_abs, shell=True,
                                capture_output=True, text=True, timeout=300)
             tests_ok = t.returncode == 0
-            _post(f"/runs/{run_id}/events",
-                  {"phase": "test",
-                   "payload": {"ok": tests_ok,
-                               "tail": (t.stdout or "")[-1000:]}})
+            if run_id:
+                _post(f"/runs/{run_id}/events",
+                      {"phase": "test",
+                       "payload": {"ok": tests_ok,
+                                   "tail": (t.stdout or "")[-1000:]}})
             # ---- verify + record -------------------------------------
             status = "success" if tests_ok else "failure"
-            _post(f"/runs/{run_id}/finish?status={status}", {})
-            _post(f"/runs/{run_id}/summary", {
-                "agent": a.AGENT,
-                "agent_version": _agent_version(a),
-                "model": result.model,
-                "tokens_in": result.tokens_in,
-                "tokens_out": result.tokens_out,
-                "duration": duration_s,
-                "context_used": bool(pack["dead_ends"] or pack["fixes"])})
+            if run_id:
+                _post(f"/runs/{run_id}/finish?status={status}", {})
+                _post(f"/runs/{run_id}/summary", {
+                    "agent": a.AGENT,
+                    "agent_version": _agent_version(a),
+                    "model": result.model,
+                    "tokens_in": result.tokens_in,
+                    "tokens_out": result.tokens_out,
+                    "duration": duration_s,
+                    "context_used": bool(pack["dead_ends"] or pack["fixes"])})
             # reuse attribution: when the run succeeded and a known fix was
             # retrieved, credit the top entry (agent name rides in the run
             # record; /runs already stores agent per run).
-            if tests_ok and retrieve.get("results"):
+            if not no_deadend and tests_ok and retrieve.get("results"):
                 top = retrieve["results"][0]
                 eid = top.get("entry_id")
                 if eid:
@@ -193,7 +206,8 @@ def run(
                        f"model={result.model}, "
                        f"tokens={result.tokens_in}/{result.tokens_out})")
         finally:
-            a.cleanup(repo_abs)
+            if run_id:
+                a.cleanup(repo_abs)
     return run_id
 
 
