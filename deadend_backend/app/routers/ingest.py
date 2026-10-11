@@ -20,6 +20,8 @@ class IngestIn(BaseModel):
     trace_id: str
     checkpoint_id: str | None = None
     title: str | None = Field(default=None, max_length=200)
+    project: str | None = Field(default=None, max_length=128,
+                                description="git repo name; project created on first use")
 
 
 @router.post("/ingest")
@@ -27,6 +29,10 @@ def ingest(body: IngestIn, u=Depends(current_user), db: Session = Depends(get_db
     if not db.execute(select(TeamMember).where(TeamMember.team_id == body.team_id,
                                                TeamMember.user_id == u.id)).scalar_one_or_none():
         raise HTTPException(403, "not a member of this team")
+    project_id = None
+    if body.project:
+        from .projects import get_or_create_project
+        project_id = get_or_create_project(db, body.team_id, body.project).id
     result = curate(body.trace_id, body.checkpoint_id)
     if "skip" in result:
         return {"skipped": result["skip"]}
@@ -47,6 +53,7 @@ def ingest(body: IngestIn, u=Depends(current_user), db: Session = Depends(get_db
                 signature_normalized=e["failure"]["signature_normalized"],
                 redacted_error_text=e["failure"]["redacted_error_text"],
                 title=body.title,
+                project_id=project_id,
                 env_fingerprint={},
                 attempts_graph=e["attempts"],
                 fix=e["fix"],
