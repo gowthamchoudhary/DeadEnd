@@ -7,7 +7,9 @@ import { motion } from "framer-motion";
 import { DeadEndMark } from "./Nav";
 
 const AUTH_HREF = "/api/auth/github";
-const DOWNLOAD_HREF = "#download";
+// direct VSIX download (see components/Download.tsx for version/size/sum)
+const DOWNLOAD_HREF = "/downloads/deadend-0.1.0.vsix";
+const DOWNLOAD_ATTR = true;
 
 export function Hero() {
   return (
@@ -52,7 +54,7 @@ export function Hero() {
                 <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </a>
-            <a href={DOWNLOAD_HREF} className="pill-outline px-5 py-2 text-small">
+            <a href={DOWNLOAD_HREF} download={DOWNLOAD_ATTR} className="pill-outline px-5 py-2 text-small">
               Download extension
             </a>
           </div>
