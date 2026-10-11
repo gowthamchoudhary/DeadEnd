@@ -105,6 +105,7 @@ class Entry(Base):
     created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_reuse_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
 
     __table_args__ = (
         Index("ix_entries_scope_team", "scope", "team_id"),
@@ -143,6 +144,7 @@ class Run(Base):
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duration: Mapped[float | None] = mapped_column(Float, nullable=True)  # seconds, runner-measured
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
 
 
 class RunEvent(Base):
@@ -153,6 +155,40 @@ class RunEvent(Base):
     phase: Mapped[str] = mapped_column(String(32))                      # plan|retrieve|attempt|test|verify|record|retry
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
     at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Invite(Base):
+    """Pending team invitation awaiting the invitee's accept/decline."""
+    __tablename__ = "invites"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), index=True)
+    inviter_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    invitee_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16), default="member")
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|accepted|declined
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Project(Base):
+    """A repo a team works on; entries and runs attach to it (created on
+    first use by repo name)."""
+    __tablename__ = "projects"
+    __table_args__ = (UniqueConstraint("team_id", "name", name="uq_project_team_name"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), index=True)
+    name: Mapped[str] = mapped_column(String(128))
+    repo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TeamSettings(Base):
+    """Per-team settings; currently just the sharing default."""
+    __tablename__ = "team_settings"
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), primary_key=True)
+    default_share: Mapped[str] = mapped_column(String(24), default="off")  # off|team|global-after-approval
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
+                                                    onupdate=func.now())
 
 
 class Quarantine(Base):
