@@ -41,11 +41,12 @@ def auth_github():
     from ..security import _signer
     signed = _signer().sign(state.encode()).decode()
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(_github_redirect(state=signed), status_code=302)
+    return RedirectResponse(_github_redirect(request, state=signed), status_code=302)
 
 
 @router.get("/callback")
-def auth_callback(code: str, state: str = "", db: Session = Depends(get_db)):
+def auth_callback(code: str, state: str = "", request: Request = None,
+                  db: Session = Depends(get_db)):
     from ..security import _signer
     try:
         _signer().unsign(state.encode())
