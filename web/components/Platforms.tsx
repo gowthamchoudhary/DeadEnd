@@ -14,7 +14,7 @@ const AGENTS = [
   { id: "copilot-cli", name: "Copilot CLI" },
 ];
 
-const EXT_OK = [".svg", ".png"];
+const EXT_OK = [".svg", ".png", ".webp"];
 
 function useLogoPaths() {
   return useMemo(

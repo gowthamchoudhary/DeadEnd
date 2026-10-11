@@ -24,3 +24,4 @@ extension/out/
 extension/*.vsix
 dist/
 *.tsbuildinfo
+web/.next/
