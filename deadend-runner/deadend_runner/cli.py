@@ -231,6 +231,61 @@ def setup_agent_cmd(
 
 
 @app.command()
+def mcp_config(
+    agent: str = typer.Option(..., "--agent"),
+    write: bool = typer.Option(False, "--write"),
+    repo: str = typer.Option(".", "--repo"),
+):
+    """Print (or --write into the repo) the exact MCP config for that agent."""
+    import sys as _sys
+    from .setup import mcp_config_for
+    a = get_adapter(agent)
+    command = ["deadend-mcp"]
+    if not _sys.modules.get("deadend_runner.mcp_server"):
+        # fall back to running via python -m when the script entrypoint
+        # is not on PATH (pipx installs expose `deadend-mcp`)
+        pass
+    cfg = mcp_config_for(a.AGENT, command)
+    # wrap into the full file content the agent expects
+    if cfg["format"] == "toml":
+        lines = ["# DeadEnd MCP server (agent-agnostic; stdio)"]
+        for name, srv in cfg["toml"]["mcp_servers"].items():
+            lines.append(f"[mcp_servers.{name}]")
+            lines.append(f"command = {srv['command']!r}")
+            lines.append("args = [" + ", ".join(repr(x) for x in srv["args"]) + "]")
+            rendered = "\n".join(lines) + "\n"
+        typer.echo(f"# write into {cfg['path']} (Codex TOML format; "
+                   "https://developers.openai.com/codex/config)")
+        typer.echo(rendered)
+    else:
+        if cfg["path"] == "opencode.json":
+            rendered = json.dumps(cfg["config"], indent=2) + "\n"
+        else:
+            rendered = json.dumps(cfg["config"], indent=2) + "\n"
+        typer.echo(f"// write into {cfg['path']} ({a.AGENT}; JSON format)")
+        typer.echo(rendered)
+    if write:
+        import os
+        target = os.path.join(os.path.abspath(repo), cfg["path"])
+        if cfg["format"] == "toml":
+            body = rendered.split("\n", 1)[1]
+        else:
+            body = ("// DeadEnd MCP server\n" + rendered)
+        os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+        existing = open(target).read() if os.path.exists(target) else ""
+        with open(target, "w") as f:
+            f.write(existing + ("\n" if existing.strip() else "") + body)
+        typer.echo(f"→ appended to {target}")
+
+
+@app.command()
+def mcp_serve():
+    """Run the DeadEnd stdio MCP server (only via agent config, not by hand)."""
+    from .mcp_server import serve
+    serve()
+
+
+@app.command()
 def reuse(entry_id: str, run_id: str, outcome: str, kind: str = "real"):
     _post("/reuse", {"entry_id": entry_id, "run_id": run_id,
                      "outcome": outcome, "kind": kind,
