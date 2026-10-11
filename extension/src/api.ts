@@ -7,8 +7,8 @@
  *
  *   POST /auth/device/start   { team_id?: str } -> { device_code, user_code,
  *        approve_url, interval, expires_in }
- *   GET  /auth/device/poll?device_code -> { status } | { status:"approved", token }  (409 via /resume path)
- *   GET  /auth/device/resume?device_code -> { token, team_id }  (called once after approval)
+ *   GET  /auth/device/poll?device_code -> { status } | { status:"approved", token }
+ *   POST /auth/device/resume  { device_code } -> { token, team_id }   (verified vs openapi.json: POST body, not GET query)
  *   GET  /auth/me (Bearer) -> { id, login, name, avatar_url, teams:[{team_id, role}] }
  *   POST /retrieve { team_id, error_text, env_fingerprint, task, include_global, budget_tokens }
  *        -> { signature_hash, results:[...], pack:[str], pack_tokens_est }
@@ -163,9 +163,10 @@ export class DeadEndApi {
     return this.request("GET", `/auth/device/poll?device_code=${encodeURIComponent(deviceCode)}`);
   }
 
-  /** Token is delivered exactly once, after approval. */
+  /** Token is delivered exactly once, after approval. openapi.json says
+   * POST with a JSON body. */
   deviceResume(deviceCode: string): Promise<{ token: string; team_id?: string }> {
-    return this.request("GET", `/auth/device/resume?device_code=${encodeURIComponent(deviceCode)}`);
+    return this.request("POST", "/auth/device/resume", { device_code: deviceCode });
   }
 
   me(): Promise<MeResp> {
