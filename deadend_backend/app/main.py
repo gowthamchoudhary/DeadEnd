@@ -6,7 +6,8 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .scan_limits import check_body
-from .routers import auth, entries, ingest, misc, promotion, reuse, retrieval, runs, teams
+from .routers import (auth, entries, ingest, misc, promotion, reuse,
+                      retrieval, runs, stats, teams)
 
 S = get_settings()
 
@@ -41,5 +42,5 @@ from .routers.verify import router as verify_router  # noqa: E402
 
 for r in (auth.router, teams.router, retrieval.router, ingest.router,
           entries.router, runs.router, reuse.router, verify_router,
-          promotion.router, misc.router):
+          promotion.router, misc.router, stats.router):
     app.include_router(r)
