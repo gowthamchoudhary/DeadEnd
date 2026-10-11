@@ -70,8 +70,11 @@ def create_all():
         # runs: agent telemetry columns (added post-launch; all nullable)
         for ddl in ("agent_version TEXT", "model TEXT",
                     "tokens_in INTEGER", "tokens_out INTEGER",
-                    "duration DOUBLE PRECISION"):
+                    "duration DOUBLE PRECISION",
+                    "project_id VARCHAR(32)"):
             ensure_column("runs", ddl)
+        # entries: project link (nullable)
+        ensure_column("entries", "project_id VARCHAR(32)")
 
         # Legacy databases may have `embedding` as TEXT (pre-pgvector model).
         # Table is empty/col nullable at this stage: safe to drop and recreate
