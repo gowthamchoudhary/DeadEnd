@@ -18,9 +18,9 @@ app = FastAPI(title="DeadEnd", version="0.1.0",
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[S.web_origin],   # locked to the web app origin
+    allow_origins=[S.web_origin],   # locked to the web app origin (Session/cors credentials)
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 

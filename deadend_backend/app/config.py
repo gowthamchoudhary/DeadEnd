@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     env: str = "dev"
     web_origin: str = "http://localhost:5173"
     base_url: str = "http://localhost:8000"
+    # OAuth callback registered in the GitHub app. Falls back to
+    # BASE_URL + /auth/callback when unset.
+    oauth_redirect_uri: str = ""   # e.g. https://dead-end-tau.vercel.app/api/auth/callback
 
     # database (Supabase Postgres w/ pgvector)
     database_url: str = ""

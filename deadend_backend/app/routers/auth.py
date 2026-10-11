@@ -23,10 +23,15 @@ GITHUB_TOKEN = "https://github.com/login/oauth/access_token"
 GITHUB_USER = "https://api.github.com/user"
 
 
+def _callback_url() -> str:
+    """OAuth redirect_uri: DEADEND_OAUTH_REDIRECT_URI wins, else
+    BASE_URL + /auth/callback."""
+    return S.oauth_redirect_uri or f"{S.base_url}/auth/callback"
+
+
 def _github_redirect(request: Request, state: str | None = None) -> str:
-    cb = f"{S.base_url}/auth/callback"
     return (f"{GITHUB_AUTHORIZE}?client_id={S.github_client_id}"
-            f"&redirect_uri={cb}&state={state or ''}&scope=read:user")
+            f"&redirect_uri={_callback_url()}&state={state or ''}&scope=read:user")
 
 
 @router.get("/github")
@@ -35,7 +40,8 @@ def auth_github():
     state = secrets.token_urlsafe(16)
     from ..security import _signer
     signed = _signer().sign(state.encode()).decode()
-    return {"authorize_url": _github_redirect(state=signed)}
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(_github_redirect(state=signed), status_code=302)
 
 
 @router.get("/callback")
@@ -48,7 +54,7 @@ def auth_callback(code: str, state: str = "", db: Session = Depends(get_db)):
     with httpx.Client(timeout=15) as c:
         tok = c.post(GITHUB_TOKEN, data={
             "client_id": S.github_client_id, "client_secret": S.github_client_secret,
-            "code": code, "redirect_uri": f"{S.base_url}/auth/callback"},
+            "code": code, "redirect_uri": _callback_url()},
             headers={"Accept": "application/json"}).json()
         access = tok.get("access_token")
         if not access:
@@ -60,7 +66,8 @@ def auth_callback(code: str, state: str = "", db: Session = Depends(get_db)):
                     avatar_url=gh.get("avatar_url"))
         db.add(user)
         db.flush()
-    resp = Response(content=f"signed in as {user.login}")
+    from fastapi.responses import RedirectResponse
+    resp = RedirectResponse(f"{S.web_origin.rstrip('/')}/app", status_code=302)
     issue_session(resp, user.id)
     return resp
 
@@ -73,8 +80,10 @@ def device_start(team_id: str | None = None, db: Session = Depends(get_db)):
     db.add(DeviceCode(device_code=dc, user_code=uc, team_id=team_id,
                       expires_at=dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=15)))
     db.commit()
+    # approval happens on the WEB app (session-cookie auth there),
+    # not on the backend directly
     return {"device_code": dc, "user_code": uc,
-            "approve_url": f"{S.base_url}/auth/device/approve?user_code={uc}",
+            "approve_url": f"{S.web_origin.rstrip('/')}/device?code={uc}",
             "interval": 3, "expires_in": 900}
 
 
