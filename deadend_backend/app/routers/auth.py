@@ -9,6 +9,34 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+# Device-token secrecy: encrypt the plaintext device token on the DeviceCode
+# row with a key derived from DEADEND_AUTH_SECRET (PBKDF2 + Fernet). This keeps
+# the token durable across requests without plaintext secret storage.
+import base64, hashlib, os as _os
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+
+def _token_fernet() -> Fernet:
+    """Deterministic Fernet key from auth_secret (dkLen=32, no salt; stable
+    across restarts, bounded by auth_secret entropy)."""
+    s = get_settings().auth_secret
+    if not s:
+        raise RuntimeError("auth_secret not configured")
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32,
+                      salt=b"deadend-device-token", iterations=600_000)
+    key = base64.urlsafe_b64encode(kdf.derive(s.encode()))
+    return Fernet(key)
+
+
+def _encrypt_token(plain: str) -> str:
+    return _token_fernet().encrypt(plain.encode()).decode()
+
+
+def _decrypt_token(cipher: str) -> str:
+    return _token_fernet().decrypt(cipher.encode()).decode()
+
 from ..config import get_settings
 from ..db import get_db
 from ..models import ApiToken, AuditLog, DeviceCode, Team, User
@@ -35,12 +63,11 @@ def _github_redirect(request: Request, state: str | None = None) -> str:
 
 
 @router.get("/github")
-def auth_github():
+def auth_github(request: Request):
     """302 to GitHub authorize with signed state."""
     state = secrets.token_urlsafe(16)
     from ..security import _signer
     signed = _signer().sign(state.encode()).decode()
-    from fastapi.responses import RedirectResponse
     return RedirectResponse(_github_redirect(request, state=signed), status_code=302)
 
 
@@ -67,6 +94,16 @@ def auth_callback(code: str, state: str = "", request: Request = None,
                     avatar_url=gh.get("avatar_url"))
         db.add(user)
         db.flush()
+        # First-time GitHub login gets a personal team so the web /app
+        # onboarding (device approval) has a team to scope tokens against.
+        team = Team(name=f"{user.login}'s team", created_by=user.id)
+        db.add(team)
+        db.flush()
+        member = TeamMember(team_id=team.id, user_id=user.id, role="owner")
+        db.add(member)
+        db.commit()  # persist user + personal team before we redirect away
+    else:
+        db.commit()
     from fastapi.responses import RedirectResponse
     resp = RedirectResponse(f"{S.web_origin.rstrip('/')}/app", status_code=302)
     issue_session(resp, user.id)
@@ -93,9 +130,6 @@ def device_poll(device_code: str, db: Session = Depends(get_db)):
     d = db.get(DeviceCode, device_code)
     if not d or d.expires_at < dt.datetime.now(dt.timezone.utc):
         raise HTTPException(410, "device code expired")
-    if d.status == "approved" and d.api_token_id:
-        t = db.get(ApiToken, d.api_token_id)
-        return {"status": "approved", "token": getattr(t, "_plain", None)}
     return {"status": d.status}
 
 
@@ -119,24 +153,25 @@ def device_approve(request: Request, user_code: str, team_id: str | None = None,
     db.add(t)
     db.flush()
     d.status, d.api_token_id, d.approved_by = "approved", t.id, u.id
+    d.device_token_cipher = _encrypt_token(plain)
     db.add(AuditLog(actor=u.id, action="device_token_created", target=t.id,
                     detail={"team_id": team_id}))
-    t._plain = plain
     db.commit()
     return {"status": "approved", "team_id": team_id}
 
 
 @router.post("/device/resume")
 def device_resume(device_code: str, db: Session = Depends(get_db)):
-    """Poll after approval returns the plaintext token once (held in memory)."""
+    """After approval, return the plaintext device token exactly once."""
     d = db.get(DeviceCode, device_code)
     if not d or d.status != "approved":
         raise HTTPException(404, "not approved yet")
-    t = db.get(ApiToken, d.api_token_id)
-    plain = getattr(t, "_plain", None)
-    if getattr(t, "_plain_sent", False) or plain is None:
+    if not d.device_token_cipher:
         raise HTTPException(409, "token already delivered once")
-    t._plain_sent = True
+    plain = _decrypt_token(d.device_token_cipher)
+    d.device_token_cipher = None
+    db.add(d)
+    db.commit()
     return {"token": plain, "team_id": d.team_id}
 
 
