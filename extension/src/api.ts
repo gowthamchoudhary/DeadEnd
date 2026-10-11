@@ -104,11 +104,12 @@ export class ApiError extends Error {
 }
 
 export class DeadEndApi {
-  constructor(private baseUrl: string, private getToken: () => string | undefined) {}
+  constructor(private baseUrl: string,
+              private getToken: () => string | undefined | Promise<string | undefined>) {}
 
-  private headers(extra?: Record<string, string>): Record<string, string> {
+  private async headers(extra?: Record<string, string>): Promise<Record<string, string>> {
     const h: Record<string, string> = { "Content-Type": "application/json", ...extra };
-    const tok = this.getToken();
+    const tok = await this.getToken();
     if (tok) {
       h["Authorization"] = `Bearer ${tok}`;
     }
@@ -119,12 +120,12 @@ export class DeadEndApi {
   private request<T>(method: "GET" | "POST" | "DELETE", path: string,
                      body?: unknown, timeoutMs = 30000): Promise<T> {
     const url = new URL(path, this.baseUrl);
-    return new Promise<T>((resolve, reject) => {
+    return new Promise<T>(async (resolve, reject) => {
       const mod = url.protocol === "https:" ? https : http;
       const data = body === undefined ? undefined : JSON.stringify(body);
       const req = mod.request(url, {
         method,
-        headers: this.headers(data ? { "Content-Length": String(Buffer.byteLength(data)) } : {}),
+        headers: await this.headers(data ? { "Content-Length": String(Buffer.byteLength(data)) } : {}),
         timeout: timeoutMs,
       }, (res) => {
         const chunks: Buffer[] = [];
