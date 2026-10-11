@@ -21,6 +21,8 @@ class RunIn(BaseModel):
     task: str = Field(max_length=4000)
     repo_url: str | None = None
     agent: str = "claude-code"
+    project: str | None = Field(default=None, max_length=128,
+                                description="git repo name; project created on first use")
 
 
 class EventIn(BaseModel):
@@ -42,8 +44,13 @@ class RunSummaryIn(BaseModel):
 @router.post("")
 def create_run(body: RunIn, u=Depends(current_user), db: Session = Depends(get_db)):
     require_team(db, body.team_id, u.id)
+    project_id = None
+    if body.project:
+        from .projects import get_or_create_project
+        project_id = get_or_create_project(db, body.team_id, body.project,
+                                           body.repo_url).id
     r = Run(team_id=body.team_id, user_id=u.id, task=body.task,
-            repo_url=body.repo_url, agent=body.agent)
+            repo_url=body.repo_url, agent=body.agent, project_id=project_id)
     db.add(r)
     db.commit()
     return {"run_id": r.id}
@@ -102,7 +109,7 @@ def list_runs(team_id: str, u=Depends(current_user), db: Session = Depends(get_d
     return [{"run_id": r.id, "task": r.task[:200], "agent": r.agent,
              "agent_version": r.agent_version, "model": r.model,
              "tokens_in": r.tokens_in, "tokens_out": r.tokens_out,
-             "duration": r.duration,
+             "duration": r.duration, "project_id": r.project_id,
              "status": r.status, "started_at": r.started_at.isoformat(),
              "finished_at": r.finished_at.isoformat() if r.finished_at else None}
             for r in rows]
