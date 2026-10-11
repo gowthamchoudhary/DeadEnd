@@ -75,6 +75,9 @@ def create_all():
             ensure_column("runs", ddl)
         # entries: project link (nullable)
         ensure_column("entries", "project_id VARCHAR(32)")
+        # device codes: durable encrypted device token (decrypted once by
+        # /auth/device/resume, then cleared). Nullable until set on approval.
+        ensure_column("device_codes", "device_token_cipher TEXT")
 
         # Legacy databases may have `embedding` as TEXT (pre-pgvector model).
         # Table is empty/col nullable at this stage: safe to drop and recreate
