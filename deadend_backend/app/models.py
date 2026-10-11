@@ -137,6 +137,12 @@ class Run(Base):
     context_pack: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # agent telemetry (populated by deadend-runner /runs/{id}/summary)
+    agent_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration: Mapped[float | None] = mapped_column(Float, nullable=True)  # seconds, runner-measured
 
 
 class RunEvent(Base):
