@@ -40,7 +40,7 @@ def _decrypt_token(cipher: str) -> str:
 
 from ..config import get_settings
 from ..db import get_db
-from ..models import ApiToken, AuditLog, DeviceCode, Team, User
+   from ..models import ApiToken, AuditLog, DeviceCode, Team, TeamMember, User
 from ..security import (COOKIE_NAME, current_user, issue_session, new_api_token,
                         read_session_user)
 
