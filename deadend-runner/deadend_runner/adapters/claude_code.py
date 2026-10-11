@@ -58,8 +58,6 @@ class ClaudeCodeAdapter(AgentAdapter):
         cmd = ["claude", "-p", prompt,
                "--output-format", "json",
                "--max-turns", str(limits.max_turns)]
-        if task.strip().endswith(".md"):
-            pass  # prompt passed inline, not as an angle-bracket file arg
         return cmd
 
     def parse_result(self, stdout: str, stderr: str,
