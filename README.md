@@ -32,11 +32,11 @@ cd deadend_backend && ./start.sh   cd ../web && npx next dev
 
 ## Environment (backend)
 
-Copy `deadend_backend/deadend-backend.env.example` to
+Copy `deadend-backend.env.example` to
 `.env` and fill the `DEADEND_*` keys — `DEADEND_AUTH_SECRET`,
 `DEADEND_GITHUB_CLIENT_ID/SECRET`, `DEADEND_DATABASE_URL`,
-`DEADEND_BASE_URL`, `DEADEND_WEB_ORIGIN`. The full table is in
-`deadend_backend/README.md`.
+`DEADEND_BASE_URL`, `DEADEND_WEB_ORIGIN`. The full table and the Render
+deploy notes are in `deadend_backend/README.md`.
 
 ## Deploy
 
