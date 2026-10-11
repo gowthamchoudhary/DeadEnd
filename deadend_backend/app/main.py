@@ -8,7 +8,7 @@ from .config import get_settings
 from .scan_limits import check_body
 from .routers import (auth, contributions, entries, ingest, invites, misc,
                       overview, promotion, projects, reuse, retrieval, runs,
-                      stats, teams)
+                      setup_status, stats, teams)
 
 S = get_settings()
 
@@ -45,5 +45,5 @@ for r in (auth.router, teams.router, retrieval.router, ingest.router,
           entries.router, runs.router, reuse.router, verify_router,
           promotion.router, misc.router, stats.router,
           invites.router, projects.router, contributions.router,
-          overview.router):
+          overview.router, setup_status.router):
     app.include_router(r)
