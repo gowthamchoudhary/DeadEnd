@@ -218,6 +218,6 @@ export function IllusContext({ small = false }: { small?: boolean }) {
       </g>
       <text x="253" y="128" textAnchor="middle" fontSize="10" fill="#8b90a0"
         fontFamily="var(--font-ibm-plex-mono), monospace">redact + approve</text>
-    </Iso>
+    </svg>
   );
 }
