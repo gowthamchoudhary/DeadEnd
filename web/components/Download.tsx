@@ -4,10 +4,10 @@
  * HTML download attribute. Version + size + SHA-256 are baked in by
  * scripts/copy-vsix.sh at package time (see inline constants). The
  * self-contained sources of truth are the copies in /downloads. */
-export const VSIX_RELEASE_URL = "/downloads/deadend-0.1.0.vsix";
-const VSIX_SHA256 = "003784ee7fa295e76ce69bbefe75f626ea952eb9ce436105b28c360c3708edd4";
-const VSIX_SIZE = "25 KB";
-const VSIX_VERSION = "0.1.0";
+export const VSIX_RELEASE_URL = "/downloads/deadend-0.2.0.vsix";
+const VSIX_SHA256 = "c6482fedacdef6ecaf72b6c390792a90ca2e5c6fb91f8532a1f2eb9bb259fe6f";
+const VSIX_SIZE = "36 KB";
+const VSIX_VERSION = "0.2.0";
 
 export function Download() {
   return (

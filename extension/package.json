@@ -2,7 +2,7 @@
   "name": "deadend",
   "displayName": "DeadEnd",
   "description": "Failure-memory for coding agents: retrieve verified fixes, run agents, share what works.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "deadend",
   "license": "MIT",
   "icon": "icon.png",
@@ -76,6 +76,21 @@
         "title": "DeadEnd: Refresh memories",
         "category": "DeadEnd",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "deadend.memories.switchContext",
+        "title": "DeadEnd: Switch memory context",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.memories.detail",
+        "title": "DeadEnd: Open memory details",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.refreshSetup",
+        "title": "DeadEnd: Re-check setup",
+        "category": "DeadEnd"
       }
     ],
     "views": {
@@ -145,12 +160,15 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
-    "package": "vsce package -o dist/deadend-0.1.0.vsix"
+    "package": "vsce package -o dist/deadend-0.2.0.vsix"
   },
   "devDependencies": {
     "@types/node": "18.x",
     "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0",
-    "@vscode/vsce": "^2.24.0"
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.46-24"
   }
 }

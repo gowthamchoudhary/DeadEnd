@@ -1,13 +1,14 @@
 /**
  * DeadEnd VS Code extension entrypoint.
- * Assembles: typed API client (openapi-generated), SecretStorage-backed
- * store, device-flow auth + status bar, run side panel, memories tree,
- * result actions.
+ * Assembles: typed API client (routes from deadend_backend/openapi.json),
+ * SecretStorage-backed store, device-flow auth + status bar, run side
+ * panel (setup checklist + controls + live timeline), memories tree +
+ * detail webview, result actions.
  */
 import * as vscode from "vscode";
 import { DeadEndApi } from "./api";
 import { AuthController } from "./auth";
-import { MemoriesProvider } from "./memories";
+import { MemoriesProvider, showMemoryDetail } from "./memories";
 import { RunPanelProvider } from "./runPanel";
 import { DeadEndStore } from "./secrets";
 import { registerResultCommands } from "./results";
@@ -28,9 +29,16 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerWebviewViewProvider(RunPanelProvider.VIEW_ID, runPanel),
     vscode.window.registerTreeDataProvider("deadend.memories", memProvider),
     vscode.commands.registerCommand("deadend.memories.refresh", () => memProvider.refresh()),
+    vscode.commands.registerCommand("deadend.memories.switchContext",
+      () => memProvider.switchContext()),
+    vscode.commands.registerCommand("deadend.memories.detail", (entryId?: string) => {
+      if (entryId) {
+        showMemoryDetail(api, String(entryId));
+      }
+    }),
   );
 
-  registerCoreCommands(context, api, store, auth);
+  registerCoreCommands(context, api, store, auth, memProvider);
   registerResultCommands(context, api, store);
   getOrCreateOutputChannel();
 }

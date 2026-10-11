@@ -8,12 +8,14 @@ import * as vscode from "vscode";
 import { DeadEndApi } from "./api";
 import { AuthController, msg } from "./auth";
 import { DeadEndStore } from "./secrets";
+import { MemoriesProvider } from "./memories";
 
 export function registerCoreCommands(
   context: vscode.ExtensionContext,
   api: DeadEndApi,
   store: DeadEndStore,
   auth: AuthController,
+  memories?: MemoriesProvider,
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("deadend.signIn", () => auth.signIn()),
@@ -68,6 +70,12 @@ export function registerCoreCommands(
       await vscode.env.openExternal(vscode.Uri.parse(`${base}/entries/${encodeURIComponent(id)}`));
     }),
     vscode.commands.registerCommand("deadend.installRunner", () => installRunner(context)),
+    vscode.commands.registerCommand("deadend.refreshSetup", () => undefined), // pane-local; overridden in runPanel
+    vscode.commands.registerCommand("deadend.memories.switchContext", () => {
+      if (memories) {
+        memories.switchContext();
+      }
+    }),
   );}
 
 /**
