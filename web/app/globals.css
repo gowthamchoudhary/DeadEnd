@@ -88,3 +88,11 @@ body {
 ::selection {
   background: rgba(124, 150, 232, 0.4);
 }
+
+/* keyboard navigation: a visible focus ring on everything focusable
+ * (sidebar links, table rows, filters, menus) */
+:focus-visible {
+  outline: 2px solid var(--g-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
