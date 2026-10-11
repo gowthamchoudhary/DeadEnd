@@ -1,0 +1,156 @@
+{
+  "name": "deadend",
+  "displayName": "DeadEnd",
+  "description": "Failure-memory for coding agents: retrieve verified fixes, run agents, share what works.",
+  "version": "0.1.0",
+  "publisher": "deadend",
+  "license": "MIT",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "deadend.signIn",
+        "title": "DeadEnd: Sign in",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.signOut",
+        "title": "DeadEnd: Sign out",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.chooseTeam",
+        "title": "DeadEnd: Choose team",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.runTask",
+        "title": "DeadEnd: Run task",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.cancelRun",
+        "title": "DeadEnd: Cancel run",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.installRunner",
+        "title": "DeadEnd: Install runner",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.acceptResult",
+        "title": "DeadEnd: Accept changes",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.rejectResult",
+        "title": "DeadEnd: Reject changes",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.shareFix",
+        "title": "DeadEnd: Share fix with team",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.publishGlobal",
+        "title": "DeadEnd: Publish to global",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.openEntry",
+        "title": "DeadEnd: Open entry in dashboard",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.memories.refresh",
+        "title": "DeadEnd: Refresh memories",
+        "category": "DeadEnd",
+        "icon": "$(refresh)"
+      }
+    ],
+    "views": {
+      "deadendView": [
+        {
+          "type": "webview",
+          "id": "deadend.runPanel",
+          "name": "Run"
+        },
+        {
+          "type": "tree",
+          "id": "deadend.memories",
+          "name": "Memories"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deadendView",
+          "title": "DeadEnd",
+          "icon": "media/deadend.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "deadend.memories",
+        "contents": "Not signed in — run **DeadEnd: Sign in** to see your team's memories."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "deadend.memories.refresh",
+          "when": "view == deadend.memories",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DeadEnd",
+      "properties": {
+        "deadend.backendUrl": {
+          "type": "string",
+          "default": "https://deadend-backend.onrender.com",
+          "description": "DeadEnd backend base URL."
+        },
+        "deadend.runnerPath": {
+          "type": "string",
+          "default": "deadend-runner",
+          "description": "Path (or name on $PATH) of the deadend-runner binary."
+        },
+        "deadend.dashboardUrl": {
+          "type": "string",
+          "default": "https://deadend-web.vercel.app",
+          "description": "DeadEnd web dashboard base URL (for opening entries)."
+        }
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gowthamchoudhary/DeadEnd"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "package": "vsce package -o dist/deadend-0.1.0.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "18.x",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.24.0"
+  }
+}
