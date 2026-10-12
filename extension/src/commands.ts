@@ -125,8 +125,8 @@ export function installRunner(context: vscode.ExtensionContext): void {
     new Promise<boolean>((resolve) => {
       const cmd =
         cli === "pipx"
-          ? `pipx install git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner`
-          : `pip install --user "deadend-runner @ git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner"`;
+          ? `pipx install --force git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner`
+          : `pip install --user --upgrade --force-reinstall "deadend-runner @ git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner"`;
       ch.show(true);
       ch.appendLine(`$ ${cmd}`);
       const p = cp.exec(cmd, { timeout: 300000 }, (err) => {
