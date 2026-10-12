@@ -34,7 +34,7 @@ export function Hero() {
     <section className="relative grain overflow-hidden">
       <div className="absolute inset-0" aria-hidden style={{ background: MESH }} />
 
-      <div className="relative mx-auto max-w-6xl px-6 pt-32 pb-2 md:pt-40">
+      <div className="relative mx-auto max-w-6xl px-6 pt-32 pb-16 md:pt-40 md:pb-24">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -68,8 +68,6 @@ export function Hero() {
           </div>
         </motion.div>
 
-        {/* spacer that the dashboard panel will overlap */}
-        <div className="h-16 md:h-24" />
       </div>
     </section>
   );

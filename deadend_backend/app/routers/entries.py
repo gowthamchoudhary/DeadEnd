@@ -1,6 +1,4 @@
 """Entries: list/get/search across private (team) and global scope."""
-import datetime as dt
-import copy
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -13,55 +11,6 @@ from ..normalize import normalize_stack, signature_hash
 from ..security import current_user, require_role
 
 router = APIRouter(tags=["entries"])
-
-
-class DemoSeedIn(BaseModel):
-    team_id: str
-
-
-@router.post("/entries/demo-seeds")
-def seed_demo_entries(body: DemoSeedIn, u=Depends(current_user),
-                      db: Session = Depends(get_db)):
-    """Install the built-in, labelled demo memories into one private team.
-
-    This endpoint intentionally accepts no caller-authored payload and can
-    only create private, seeded entries. Repeating it is safe.
-    """
-    require_role(db, body.team_id, u.id, ("owner", "admin"))
-    from ..demo_seeds import DEMO_SEEDS
-
-    inserted, existing = [], []
-    for seed in DEMO_SEEDS:
-        normalized = normalize_stack(seed["signature"])
-        sig_hash = signature_hash(normalized)
-        row = db.execute(select(Entry).where(
-            Entry.team_id == body.team_id,
-            Entry.signature_hash == sig_hash,
-        )).scalar_one_or_none()
-        if row:
-            existing.append(row.id)
-            continue
-        row = Entry(
-            scope="private", team_id=body.team_id,
-            signature_hash=sig_hash,
-            signature_normalized=normalized,
-            redacted_error_text=seed["error"],
-            title=f"[Demo seed] {seed['title']}",
-            env_fingerprint={"language": "python", "frameworks": ["fastapi"]},
-            attempts_graph=copy.deepcopy(seed["attempts"]),
-            fix={**copy.deepcopy(seed["fix"]),
-                 "provenance": {"curated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-                                "source": "demo seed"}},
-            constraints=seed["constraints"], seeded=True, verified=False,
-            created_by=u.id,
-            meta={"kind": "demo-seed", "verification": "example fixture; not a production incident"},
-        )
-        db.add(row)
-        db.flush()
-        inserted.append(row.id)
-    db.commit()
-    return {"inserted": inserted, "existing": existing,
-            "total": len(inserted) + len(existing), "scope": "private"}
 
 
 def _entry_view(e: Entry, with_reuses: bool = False) -> dict:

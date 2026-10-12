@@ -2,7 +2,7 @@
   "name": "deadend",
   "displayName": "DeadEnd",
   "description": "Memory and verification agent: search Entire sessions, retrieve team fixes, run and verify coding agents.",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "publisher": "deadend",
   "license": "MIT",
   "icon": "icon.png",
@@ -29,11 +29,6 @@
       {
         "command": "deadend.chooseTeam",
         "title": "DeadEnd: Choose team",
-        "category": "DeadEnd"
-      },
-      {
-        "command": "deadend.seedDemoMemories",
-        "title": "DeadEnd: Load demo memories into team",
         "category": "DeadEnd"
       },
       {
@@ -165,7 +160,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
-    "package": "vsce package -o dist/deadend-0.3.10.vsix"
+    "package": "vsce package -o dist/deadend-0.3.11.vsix"
   },
   "devDependencies": {
     "@types/node": "18.x",

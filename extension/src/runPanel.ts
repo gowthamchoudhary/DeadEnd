@@ -141,9 +141,6 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
       case "refreshChecks":
         await this.refreshChecks(true);
         break;
-      case "seedDemoMemories":
-        await vscode.commands.executeCommand("deadend.seedDemoMemories");
-        break;
       case "action":
         await this.doCheckAction(String(m.id ?? ""));
         break;
@@ -545,7 +542,6 @@ ${codiconLink(codiconUri?.toString())}
     <div class="row spread" style="margin-top:8px">
       <span class="muted">Refresh backend, runner, and repository checks</span>
       <div class="row">
-        <button class="secondary" id="loadDemoMemories">Load demo memories</button>
         <button class="secondary" id="refreshChecks"><span class="codicon codicon-refresh"></span> Refresh</button>
       </div>
     </div>
@@ -697,7 +693,7 @@ ${codiconLink(codiconUri?.toString())}
         const state = document.createElement("span");
         state.className = "pill " + (m.verified ? "ok" : "warn");
         state.textContent = m.source === "entire" ? "Entire session" :
-          (m.verified ? "verified" : "demo / unverified");
+          (m.verified ? "verified" : "unverified");
         heading.append(title, state);
         const detail = document.createElement("div");
         detail.className = "muted";
@@ -863,7 +859,6 @@ ${codiconLink(codiconUri?.toString())}
   $("previewBtn").onclick = () => vscode.postMessage({ op: "previewContext",
     task: $("task").value });
   $("refreshChecks").onclick = () => vscode.postMessage({ op: "refreshChecks" });
-  $("loadDemoMemories").onclick = () => vscode.postMessage({ op: "seedDemoMemories" });
   $("kill").onchange = () => vscode.postMessage({ op: "toggleKill", value: $("kill").checked });
   document.querySelectorAll("#scopeSeg button").forEach((b) => {
     b.onclick = () => {

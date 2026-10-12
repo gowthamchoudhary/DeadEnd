@@ -1,13 +1,10 @@
 "use client";
 
-/** Download section — VSIX served from this site's /downloads with the
- * HTML download attribute. Version + size + SHA-256 are baked in by
- * scripts/copy-vsix.sh at package time (see inline constants). The
- * self-contained sources of truth are the copies in /downloads. */
-export const VSIX_RELEASE_URL = "/downloads/deadend-0.3.10.vsix";
-export const VSIX_SHA256 = "3a6c6d59a854af8b566deb1df4c712bf3a11c4d8e8601124cf2c3dbc64628f61";
+/** Download the immutable, versioned VSIX published in public/downloads. */
+export const VSIX_RELEASE_URL = "/downloads/deadend-0.3.11.vsix";
+export const VSIX_SHA256 = "d36817bbb0e0f039243ecf28ebb6c3bbdae73b6b1d11e22a7db0714ea2e9d1a3";
 export const VSIX_SIZE = "42 KB";
-export const VSIX_VERSION = "0.3.10";
+export const VSIX_VERSION = "0.3.11";
 
 export function Download() {
   return (

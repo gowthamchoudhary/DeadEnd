@@ -279,12 +279,6 @@ export class DeadEndApi {
       "GET", `/entries?${q.toString()}`).then((r) => (r[0]?.entries ?? []));
   }
 
-  seedDemoMemories(teamId: string): Promise<{
-    inserted: string[]; existing: string[]; total: number; scope: string;
-  }> {
-    return this.request("POST", "/entries/demo-seeds", { team_id: teamId });
-  }
-
   // ------------------------------------------------------------------- stats
   statsAgents(teamId: string): Promise<{
     team_id: string;

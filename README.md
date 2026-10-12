@@ -10,7 +10,6 @@ Claude Code, Codex, Pi, Antigravity, or Copilot CLI.
 
 **Retrieve before the run. Inject useful context. Test the result. Keep a trace.**
 
-[Demo guide](deadend-demo-workspace/demo_tasks.md) ·
 [Supported agents](SUPPORT.md) ·
 [Backend setup](deadend_backend/README.md)
 
@@ -70,7 +69,7 @@ sequenceDiagram
     API-->>Runner: Ranked, budgeted context pack
     Runner->>Agent: Task + Entire history + failures, constraints, fixes
     Agent->>Runner: Stream response and workspace changes
-    Runner->>Runner: Run configured tests; retry once if they fail
+    Runner->>Runner: Run configured tests and retry once if they fail
     Runner->>API: Record retrieve, inject, attempt, test, verify, result
     API-->>UI: Live run events and dashboard history
 ```
@@ -149,32 +148,6 @@ MCP configuration, capture support, and known caveats.
 - The DeadEnd session token is stored in VS Code SecretStorage. Private
   memories are team-scoped. Global sharing requires a verified fix, a review
   preview, and explicit approval.
-- Demo seeds are synthetic and marked unverified. They demonstrate retrieval
-  and injection; they are not evidence of production incidents or measured
-  success.
-
-## Run the demo
-
-The controlled target is [`deadend-demo-workspace/`](deadend-demo-workspace/).
-Its API is intentionally small so a demo task can touch several real seams:
-the FastAPI routes, the compatibility wrapper, ticket storage, and tests.
-
-1. Deploy the backend version containing the ten demo fixtures.
-2. Install the VS Code extension and current `deadend-runner`; sign in to
-   DeadEnd, sign in to Entire with `entire login`, and choose the demo team.
-3. In the demo repository, enable the chosen agent's Entire capture hooks and
-   search skill, for example: `entire enable --yes --agent opencode --search-skill`.
-4. Open `deadend-demo-workspace/` and run **DeadEnd: Load demo memories into
-   team**. It is safe to repeat; existing entries are skipped.
-5. Choose OpenCode, select private team context, and preview the task in
-   [`demo_tasks.md`](deadend-demo-workspace/demo_tasks.md).
-6. Record separate Entire-session and curated-memory match counts, injected
-   item count, test result, repair attempt, and final run status. Show a
-   success only if the run actually completed successfully.
-
-The memory pack contains synthetic, unverified fixtures. A real run can still
-fail or time out; DeadEnd should show that result plainly rather than turn it
-into a success claim.
 
 ## Development setup
 
@@ -221,16 +194,12 @@ the FastAPI service.
 | [`deadend-runner/`](deadend-runner/) | Local Python CLI, agent adapters, retrieval/injection/test/record loop, MCP server |
 | [`deadend_backend/`](deadend_backend/) | FastAPI routes, authentication, memory storage, retrieval, run events, economics |
 | [`web/`](web/) | Next.js landing page and team dashboard: memories, runs, agents, settings, economics |
-| [`deadend-demo-workspace/`](deadend-demo-workspace/) | Ticketdesk target app, synthetic demo task, reproducible tests |
 | [`SUPPORT.md`](SUPPORT.md) | Agent and integration support matrix |
 
 ## Verify changes
 
 ```powershell
 cd deadend_backend
-python -m pytest -q
-
-cd ..\deadend-demo-workspace
 python -m pytest -q
 
 cd ..\web
