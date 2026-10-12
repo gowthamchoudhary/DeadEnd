@@ -16,6 +16,14 @@ are implemented today via the routes marked **Integration**.
 
 ## How the three integration routes work together
 
+Entire is also an active retrieval source, not only a capture hook. Before
+each memory-enabled run, the local runner searches the current repository's
+Entire session/checkpoint index with the authenticated CLI, fetches compact
+transcript excerpts for the best hits, and injects them alongside curated
+DeadEnd entries under one context budget. Raw transcripts and the Entire
+login remain local. Enable the agent search skill with `entire enable --agent
+<name> --search-skill` and authenticate with `entire login`.
+
 1. **Headless adapter (runner)** — `deadend-runner run <repo> <task> --agent <name>`.
    Retrieves context from the backend, injects the DeadEnd block into the
    agent's instruction file, drives the agent headless inline (also passing
