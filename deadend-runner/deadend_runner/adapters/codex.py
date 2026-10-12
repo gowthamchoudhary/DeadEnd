@@ -25,7 +25,6 @@ Verified facts used here:
   - Entire `entire enable --agent codex` writes .codex/hooks.json.
 """
 import json
-import re
 from .base import (AgentAdapter, Capabilities, Limits, RunResult,
                    context_block, strip_block, upsert_block, which)
 

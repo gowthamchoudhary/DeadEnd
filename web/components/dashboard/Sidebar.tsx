@@ -15,6 +15,7 @@ const ICONS: Record<string, string> = {
   teams: "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20a6 6 0 0 1 12 0M17 11a3 3 0 1 0 0-6M16 20h6a5 5 0 0 0-4-4.9",
   sharing: "M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v13M8 7l4-4 4 4",
   quarantine: "M12 3l8 3v6c0 5-3.4 8.4-8 9-4.6-.6-8-4-8-9V6zM12 9v4M12 16h.01",
+  economics: "M4 20h16M6 16v-6M11 16V7M16 16v-4M21 16v-9",
   settings: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
 };
 
@@ -26,6 +27,7 @@ export const NAV = [
   { href: "/app/teams", label: "Teams", icon: ICONS.teams },
   { href: "/app/sharing", label: "Sharing", icon: ICONS.sharing },
   { href: "/app/quarantine", label: "Quarantine", icon: ICONS.quarantine },
+  { href: "/app/economics", label: "Economics", icon: ICONS.economics },
   { href: "/app/settings", label: "Settings", icon: ICONS.settings },
 ] as const;
 

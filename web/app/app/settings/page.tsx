@@ -11,8 +11,11 @@ import {
   Badge, Btn, Card, Code, ErrorNote, PageHead, SectionTitle, SkeletonRows,
   inputCls, fmt,
 } from "@/components/dashboard/ui";
-
-const VSIX = "/downloads/deadend-0.1.0.vsix";
+/* Same constants the landing page's Download section bakes in at package
+ * time (scripts/copy-vsix.sh) — one source of truth for version+file. */
+import {
+  VSIX_RELEASE_URL, VSIX_SHA256, VSIX_SIZE, VSIX_VERSION,
+} from "@/components/Download";
 
 /** Install steps per agent — exactly what deadend-runner / deadend-mcp do
  * (see SUPPORT.md in the repo for the doc links behind each row). */
@@ -121,12 +124,15 @@ export default function SettingsPage() {
         <SectionTitle>VS Code extension</SectionTitle>
         <Card className="px-4 py-4 flex flex-wrap items-center gap-4">
           <div className="min-w-0">
-            <div className="text-small text-text-primary">DeadEnd extension v0.1.0</div>
+            <div className="text-small text-text-primary">DeadEnd extension v{VSIX_VERSION}</div>
             <p className="text-tiny text-text-muted mt-0.5">
               Run agents from the editor, watch steps live, accept or revert.
             </p>
+            <p className="text-tiny text-text-muted font-mono mt-0.5">
+              {VSIX_SIZE} · sha256 {VSIX_SHA256.slice(0, 16)}…
+            </p>
           </div>
-          <a href={VSIX} download className="pill-fill px-4 py-1.5 text-small font-medium ml-auto">
+          <a href={VSIX_RELEASE_URL} download className="pill-fill px-4 py-1.5 text-small font-medium ml-auto">
             Download .vsix
           </a>
         </Card>

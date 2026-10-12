@@ -8,12 +8,14 @@ import * as vscode from "vscode";
 import { DeadEndApi } from "./api";
 import { AuthController, msg } from "./auth";
 import { DeadEndStore } from "./secrets";
+import { MemoriesProvider } from "./memories";
 
 export function registerCoreCommands(
   context: vscode.ExtensionContext,
   api: DeadEndApi,
   store: DeadEndStore,
   auth: AuthController,
+  memories?: MemoriesProvider,
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("deadend.signIn", () => auth.signIn()),
@@ -33,7 +35,8 @@ export function registerCoreCommands(
       }
       if (!me.teams.length) {
         void vscode.window.showWarningMessage(
-          "No teams yet. Create one in the DeadEnd web dashboard first.");
+          "No teams yet. Create one in the DeadEnd web dashboard first.",
+        );
         return;
       }
       const items = me.teams.map((t) => ({
@@ -47,15 +50,21 @@ export function registerCoreCommands(
       if (picked) {
         await store.setTeam(picked.teamId);
         const useGlobal = await vscode.window.showQuickPick(
-          [{ label: "Use global context", value: true },
-           { label: "Private team context only", value: false }],
-          { placeHolder: "Include DeadEnd's global verified fixes as retrieval context?" });
+          [
+            { label: "Use global context", value: true },
+            { label: "Private team context only", value: false },
+          ],
+          {
+            placeHolder: "Include DeadEnd's global verified fixes as retrieval context?",
+          },
+        );
         if (useGlobal) {
           await store.setUseGlobal(useGlobal.value);
         }
         await auth.refresh();
         void vscode.window.showInformationMessage(
-          `DeadEnd team set to ${picked.teamId} (global: ${await store.getUseGlobal() ? "on" : "off"}).`);
+          `DeadEnd team set to ${picked.teamId} (global: ${await store.getUseGlobal() ? "on" : "off"}).`,
+        );
       }
     }),
     vscode.commands.registerCommand("deadend.openEntry", async (entryId?: string) => {
@@ -63,12 +72,23 @@ export function registerCoreCommands(
       if (!id) {
         return;
       }
-      const base = vscode.workspace.getConfiguration().get<string>("deadend.dashboardUrl",
-        "https://deadend-web.vercel.app");
-      await vscode.env.openExternal(vscode.Uri.parse(`${base}/entries/${encodeURIComponent(id)}`));
+      const base = vscode.workspace.getConfiguration().get<string>(
+        "deadend.dashboardUrl",
+        "https://dead-end-tau.vercel.app",
+      );
+      await vscode.env.openExternal(
+        vscode.Uri.parse(`${base}/entries/${encodeURIComponent(id)}`),
+      );
     }),
     vscode.commands.registerCommand("deadend.installRunner", () => installRunner(context)),
-  );}
+    vscode.commands.registerCommand("deadend.refreshSetup", () => undefined), // pane-local; overridden in runPanel
+    vscode.commands.registerCommand("deadend.memories.switchContext", () => {
+      if (memories) {
+        memories.switchContext();
+      }
+    }),
+  );
+}
 
 /**
  * Explicit installation of the deadend-runner CLI, per the runner package
@@ -77,30 +97,33 @@ export function registerCoreCommands(
  */
 export function installRunner(context: vscode.ExtensionContext): void {
   const ch = getOrCreateOutputChannel();
-  const tryCli = (cli: string) => new Promise<boolean>((resolve) => {
-    const cmd = cli === "pipx"
-      ? `pipx install git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner`
-      : `pip install --user "deadend-runner @ git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner"`;
-    ch.show(true);
-    ch.appendLine(`$ ${cmd}`);
-    const p = cp.exec(cmd, { timeout: 300000 }, (err) => {
-      if (err) {
-        ch.appendLine(`FAILED: ${err.message}`);
-        resolve(false);
-      } else {
-        ch.appendLine("OK");
-        resolve(true);
-      }
+  const tryCli = (cli: string) =>
+    new Promise<boolean>((resolve) => {
+      const cmd =
+        cli === "pipx"
+          ? `pipx install git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner`
+          : `pip install --user "deadend-runner @ git+https://github.com/gowthamchoudhary/DeadEnd#subdirectory=deadend-runner"`;
+      ch.show(true);
+      ch.appendLine(`$ ${cmd}`);
+      const p = cp.exec(cmd, { timeout: 300000 }, (err) => {
+        if (err) {
+          ch.appendLine(`FAILED: ${err.message}`);
+          resolve(false);
+        } else {
+          ch.appendLine("OK");
+          resolve(true);
+        }
+      });
+      p.stdout?.on("data", (d: string) => ch.append(d));
+      p.stderr?.on("data", (d: string) => ch.append(d));
     });
-    p.stdout?.on("data", (d: string) => ch.append(d));
-    p.stderr?.on("data", (d: string) => ch.append(d));
-  });
 
   void vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: "DeadEnd: installing runner…" },
     async () => {
-      const hasPipx = cp.execSync("pipx --version || true", { stdio: "ignore" }) !== undefined
-        && (() => {
+      const hasPipx =
+        cp.execSync("pipx --version || true", { stdio: "ignore" }) !== undefined &&
+        (() => {
           try {
             cp.execSync("pipx --version", { stdio: "pipe" });
             return true;
@@ -111,12 +134,15 @@ export function installRunner(context: vscode.ExtensionContext): void {
       const ok = hasPipx ? await tryCli("pipx") : await tryCli("pip");
       if (ok) {
         void vscode.window.showInformationMessage(
-          "DeadEnd runner installed. Verify with: deadend-runner agents");
+          "DeadEnd runner installed. Verify with: deadend-runner agents",
+        );
       } else {
         void vscode.window.showErrorMessage(
-          "Runner install failed — see the DeadEnd output channel for details.");
+          "Runner install failed — see the DeadEnd output channel for details.",
+        );
       }
-    });
+    },
+  );
 }
 
 let _out: vscode.OutputChannel | undefined;

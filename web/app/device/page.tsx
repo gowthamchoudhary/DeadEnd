@@ -91,7 +91,18 @@ function DeviceFlow() {
         </>
       )}
       {result === "approved" && (
-        <p className="text-small text-brand-success">Approved — return to your editor.</p>
+        <div className="space-y-3 text-left">
+          <p className="text-small text-brand-success">Approved.</p>
+          <p className="text-small text-text-secondary">
+            Return to VS Code — it should show your name in the status bar
+            within a few seconds. The token is delivered to the extension
+            exactly once, then kept in its SecretStorage.
+          </p>
+          <a href="/docs/getting-started"
+            className="pill-outline inline-block px-4 py-1.5 text-small">
+            Next: the getting-started guide →
+          </a>
+        </div>
       )}
       {result === "denied" && (
         <p className="text-small text-brand-danger">Denied — nothing was shared.</p>

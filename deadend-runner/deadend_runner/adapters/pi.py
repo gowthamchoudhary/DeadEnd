@@ -27,7 +27,6 @@ Verified facts used here:
   - Entire `entire enable --agent pi` writes .pi/extensions/entire/index.ts.
 """
 import json
-import re
 from .base import (AgentAdapter, Capabilities, Limits, RunResult,
                    context_block, strip_block, upsert_block, which)
 

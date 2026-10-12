@@ -4,15 +4,44 @@ import datetime as dt
 import secrets
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+# Device-token secrecy: encrypt the plaintext device token on the DeviceCode
+# row with a key derived from DEADEND_AUTH_SECRET (PBKDF2 + Fernet). This keeps
+# the token durable across requests without plaintext secret storage.
+import base64
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+
+def _token_fernet() -> Fernet:
+    """Deterministic Fernet key from auth_secret (dkLen=32, no salt; stable
+    across restarts, bounded by auth_secret entropy)."""
+    s = get_settings().auth_secret
+    if not s:
+        raise RuntimeError("auth_secret not configured")
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32,
+                      salt=b"deadend-device-token", iterations=600_000)
+    key = base64.urlsafe_b64encode(kdf.derive(s.encode()))
+    return Fernet(key)
+
+
+def _encrypt_token(plain: str) -> str:
+    return _token_fernet().encrypt(plain.encode()).decode()
+
+
+def _decrypt_token(cipher: str) -> str:
+    return _token_fernet().decrypt(cipher.encode()).decode()
+
 from ..config import get_settings
 from ..db import get_db
-from ..models import ApiToken, AuditLog, DeviceCode, Team, User
-from ..security import (COOKIE_NAME, current_user, issue_session, new_api_token,
+from ..models import ApiToken, AuditLog, DeviceCode, Team, TeamMember, User
+from ..security import (current_user, issue_session, new_api_token,
                         read_session_user)
 
 S = get_settings()
@@ -35,12 +64,11 @@ def _github_redirect(request: Request, state: str | None = None) -> str:
 
 
 @router.get("/github")
-def auth_github():
+def auth_github(request: Request):
     """302 to GitHub authorize with signed state."""
     state = secrets.token_urlsafe(16)
     from ..security import _signer
     signed = _signer().sign(state.encode()).decode()
-    from fastapi.responses import RedirectResponse
     return RedirectResponse(_github_redirect(request, state=signed), status_code=302)
 
 
@@ -67,6 +95,27 @@ def auth_callback(code: str, state: str = "", request: Request = None,
                     avatar_url=gh.get("avatar_url"))
         db.add(user)
         db.flush()
+        # First-time GitHub login gets a personal team so the web /app
+        # onboarding (device approval) has a team to scope tokens against.
+        team = Team(name=f"{user.login}'s team", created_by=user.id)
+        db.add(team)
+        db.flush()
+        member = TeamMember(team_id=team.id, user_id=user.id, role="owner")
+        db.add(member)
+        db.commit()  # persist user + personal team before we redirect away
+    else:
+        # Self-heal: a user created by an earlier login that crashed halfway
+        # may have no team membership — create their personal team now so
+        # onboarding has a team to scope tokens/devices against.
+        if not db.execute(select(TeamMember).where(TeamMember.user_id == user.id)
+                          ).scalar_one_or_none():
+            team = Team(name=f"{user.login}'s team", created_by=user.id)
+            db.add(team)
+            db.flush()
+            db.add(TeamMember(team_id=team.id, user_id=user.id, role="owner"))
+            db.commit()
+        else:
+            db.commit()
     from fastapi.responses import RedirectResponse
     resp = RedirectResponse(f"{S.web_origin.rstrip('/')}/app", status_code=302)
     issue_session(resp, user.id)
@@ -78,14 +127,18 @@ def auth_callback(code: str, state: str = "", request: Request = None,
 def device_start(team_id: str | None = None, db: Session = Depends(get_db)):
     dc = secrets.token_urlsafe(24)
     uc = "-".join(secrets.token_hex(2).upper() for _ in range(3))
+    now = dt.datetime.now(dt.timezone.utc)
     db.add(DeviceCode(device_code=dc, user_code=uc, team_id=team_id,
-                      expires_at=dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=15)))
+                      expires_at=now + dt.timedelta(minutes=15),
+                      first_attempt_at=now,
+                      last_delivery_at=None,
+                      deliveries=0))
     db.commit()
     # approval happens on the WEB app (session-cookie auth there),
     # not on the backend directly
     return {"device_code": dc, "user_code": uc,
             "approve_url": f"{S.web_origin.rstrip('/')}/device?code={uc}",
-            "interval": 3, "expires_in": 900}
+            "interval": 3, "expires_in": 900, "status": "pending"}
 
 
 @router.get("/device/poll")
@@ -93,9 +146,6 @@ def device_poll(device_code: str, db: Session = Depends(get_db)):
     d = db.get(DeviceCode, device_code)
     if not d or d.expires_at < dt.datetime.now(dt.timezone.utc):
         raise HTTPException(410, "device code expired")
-    if d.status == "approved" and d.api_token_id:
-        t = db.get(ApiToken, d.api_token_id)
-        return {"status": "approved", "token": getattr(t, "_plain", None)}
     return {"status": d.status}
 
 
@@ -109,7 +159,7 @@ def device_approve(request: Request, user_code: str, team_id: str | None = None,
     if not d or d.expires_at < dt.datetime.now(dt.timezone.utc):
         raise HTTPException(410, "device code expired")
     if d.status == "approved":
-        return {"status": "approved"}
+        return {"status": "approved", "team_id": d.team_id}
     team_id = team_id or d.team_id
     if not team_id:
         raise HTTPException(400, "team_id required to scope the token")
@@ -119,25 +169,67 @@ def device_approve(request: Request, user_code: str, team_id: str | None = None,
     db.add(t)
     db.flush()
     d.status, d.api_token_id, d.approved_by = "approved", t.id, u.id
+    d.device_token_cipher = _encrypt_token(plain)
     db.add(AuditLog(actor=u.id, action="device_token_created", target=t.id,
                     detail={"team_id": team_id}))
-    t._plain = plain
     db.commit()
     return {"status": "approved", "team_id": team_id}
 
 
 @router.post("/device/resume")
 def device_resume(device_code: str, db: Session = Depends(get_db)):
-    """Poll after approval returns the plaintext token once (held in memory)."""
+    """After approval, return the plaintext device token for the extension.
+
+    Idempotent within a short window: if the previous token was delivered
+    within the last 2 minutes, revoke it and issue a fresh one for the same
+    approved device code. Outside that window, keep the strict one-time
+    delivery (returning the error seen before this change so callers fail
+    loudly rather than mysteriously looping forever).
+    """
     d = db.get(DeviceCode, device_code)
     if not d or d.status != "approved":
         raise HTTPException(404, "not approved yet")
-    t = db.get(ApiToken, d.api_token_id)
-    plain = getattr(t, "_plain", None)
-    if getattr(t, "_plain_sent", False) or plain is None:
-        raise HTTPException(409, "token already delivered once")
-    t._plain_sent = True
-    return {"token": plain, "team_id": d.team_id}
+    if not d.device_token_cipher:
+        # Already delivered in the past a non-recent time — strict one-time
+        # delivery. Return the rub: the token was created but never used.
+        raise HTTPException(409, "token already delivered once — re-sign in to get a fresh device code")
+    now = dt.datetime.now(dt.timezone.utc)
+    within_replay_window = (d.last_delivery_at is not None and
+                            now - d.last_delivery_at < dt.timedelta(minutes=2))
+    if within_replay_window:
+        # Fresh token for the same device code: revoke the previous one and
+        # overwrite with a fresh token, re-encrypt, reset the delivery marker
+        # so the next call stays strictly one-time until acceptance types in.
+        prev_id = d.api_token_id
+        if prev_id:
+            prev = db.get(ApiToken, prev_id)
+            if prev and prev.user_id == d.approved_by:
+                prev.revoked_at = now
+                db.add(prev)
+                db.add(AuditLog(actor=d.approved_by, action="api_token_revoked",
+                                target=prev.id))
+        plain, sha = new_api_token()
+        t = ApiToken(user_id=d.approved_by, token_sha256=sha, label="device",
+                     scopes={"teams": [d.team_id]})
+        db.add(t)
+        db.flush()
+        t._plain = plain
+        d.api_token_id = t.id
+        d.device_token_cipher = _encrypt_token(plain)
+        d.last_delivery_at = now
+        db.add(d)
+        db.commit()
+        return {"token": plain, "team_id": d.team_id, "reissued": True}
+
+    # Strict one-time delivery: consume the cipher and return the plaintext
+    # exactly once.
+    plain = _decrypt_token(d.device_token_cipher)
+    d.device_token_cipher = None
+    d.last_delivery_at = now
+    d.deliveries = (d.deliveries or 0) + 1
+    db.add(d)
+    db.commit()
+    return {"token": plain, "team_id": d.team_id, "reissued": False}
 
 
 @router.get("/me")

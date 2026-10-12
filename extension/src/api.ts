@@ -96,6 +96,16 @@ export interface PromoteResp {
   status: string;
   diff?: Record<string, unknown>;
 }
+export type AgentStats = {
+  runs: number; success_rate: number | null; avg_attempts: number | null;
+  avg_tokens: number | null; max_tokens: number | null; avg_duration_s: number | null;
+};
+export interface SetupStatusResp {
+  tokens_count: number;
+  teams: { team_id: string; name: string; role: string }[];
+  neatlogs_recorded: boolean | null;
+  entire_recorded: boolean | null;
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -165,12 +175,25 @@ export class DeadEndApi {
 
   /** Token is delivered exactly once, after approval. openapi.json says
    * POST with a JSON body. */
-  deviceResume(deviceCode: string): Promise<{ token: string; team_id?: string }> {
-    return this.request("POST", "/auth/device/resume", { device_code: deviceCode });
+  deviceResume(deviceCode: string): Promise<{ token: string; team_id?: string; reissued?: boolean }> {
+    return this.request("POST", `/auth/device/resume?device_code=${encodeURIComponent(deviceCode)}`, {});
   }
 
   me(): Promise<MeResp> {
     return this.request("GET", "/auth/me");
+  }
+
+  health(): Promise<{ status: string }> {
+    return this.request<{ status: string }>("GET", "/health");
+  }
+
+  /**
+   * Wake check used before device flow. Kept separate from `health()` so
+   * the caller can decide how long to wait / how many retries to use; the
+   * endpoint it calls is the same GET /health.
+   */
+  healthz(): Promise<{ status: string }> {
+    return this.request<{ status: string }>("GET", "/healthz");
   }
 
   // ----------------------------------------------------------------- context
@@ -240,11 +263,31 @@ export class DeadEndApi {
     team_id: string;
     agents: Record<string, {
       all: { runs: number; success_rate: number | null; avg_tokens: number | null; avg_duration_s: number | null };
-      with_context: typeof all0; without_context: typeof all0;
+      with_context: AgentStats; without_context: AgentStats;
     }>;
   }> {
-    const all0 = { runs: 0, success_rate: null, avg_tokens: null, avg_duration_s: null };
     return this.request("GET", `/stats/agents?team_id=${encodeURIComponent(teamId)}`);
+  }
+
+  /** GET /entries/{id} — full entry incl. reuse counts + confidence. */
+  requestEntry(entryId: string): Promise<EntryView & {
+    observations?: number; reuse_success?: number;
+    confidence?: { score?: number; observations?: number };
+  }> {
+    return this.request("GET", `/entries/${encodeURIComponent(entryId)}`);
+  }
+
+  // -------------------------------------------------------------- setup facts
+  /**
+   * GET /me/setup-status — real per-user facts for the setup checklist:
+   * { tokens_count: number,
+   *   teams: [{team_id, name, role}],
+   *   neatlogs_recorded: boolean | null,
+   *   entire_recorded: boolean | null }
+   * null means "no record event yet", NOT false.
+   */
+  setupStatus(): Promise<SetupStatusResp> {
+    return this.request("GET", "/me/setup-status");
   }
 
   // -------------------------------------------------------------------- SSE

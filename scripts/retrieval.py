@@ -9,7 +9,7 @@ Real data only: reads entries from the two Entire repos and seeded files
 Returns dead ends too: for each match the failed attempts with
 why_it_failed, plus the fix if one exists.
 """
-import datetime, hashlib, json, os, re, subprocess, sys
+import hashlib, json, os, re, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from confidence import confidence, env_match
@@ -26,12 +26,12 @@ def load_entries(sources=("private",), include_seeds=False):
     out = []
     for src in sources:
         repo = REPOS[src]
-        r = _git(repo, "ls-tree", "-r", "--name-only", f"origin/main", "failures")
+        r = _git(repo, "ls-tree", "-r", "--name-only", "origin/main", "failures")
         if r.returncode != 0 or not r.stdout.strip():
             r = _git(repo, "ls-tree", "-r", "--name-only", "main", "failures")
         if r.returncode == 0:
             for p in [x for x in r.stdout.split() if x.endswith(".json")]:
-                for ref in (f"origin/main", "main"):
+                for ref in ("origin/main", "main"):
                     c = _git(repo, "show", f"{ref}:{p}")
                     if c.returncode == 0:
                         d = json.loads(c.stdout)
@@ -96,7 +96,7 @@ def search(query_env: dict, failure_text: str, cur_env: dict,
     return scored
 
 def _reuse(e):
-    from reuse_events import collect, BRANCH
+    from reuse_events import collect
     repo = REPOS.get(e["_scope"]) if e["_scope"] in REPOS else None
     if repo:
         return collect(repo, e["failure"]["id"])

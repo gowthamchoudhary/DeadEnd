@@ -1,14 +1,10 @@
 """Quarantine review + stats for the dashboard."""
-import datetime as dt
-
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import (Contribution, Entry, Quarantine, ReuseEvent, Run,
-                      TeamMember)
+from ..models import Entry, Quarantine, ReuseEvent, Run
 from ..security import current_user, require_role
 
 router = APIRouter(tags=["misc"])

@@ -21,7 +21,7 @@ const LINKS = [
   { href: "#features", label: "Features" },
   { href: "#how", label: "How it works" },
   { href: "#platforms", label: "Platforms" },
-  { href: "#docs", label: "Docs" },
+  { href: "/docs/getting-started", label: "Docs" },
   { href: "#download", label: "Download" },
 ];
 

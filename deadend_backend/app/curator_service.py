@@ -13,7 +13,7 @@ import urllib.request
 
 from .config import get_settings
 from .normalize import normalize_stack, signature_hash
-from .scans import injection_scan, redact, scan_all, secret_scan
+from .scans import redact, scan_all
 
 S = get_settings()
 

@@ -9,6 +9,7 @@ import datetime as dt
 import json
 import os
 import platform
+import re
 import subprocess
 
 import httpx
@@ -75,6 +76,36 @@ def _flatten(retrieve: dict) -> dict:
             "fixes": fixes[:3]}
 
 
+def emit(ev: dict) -> None:
+    """Print one structured phase event as a JSON line on stdout so the
+    VS Code extension can stream the live timeline without scraping
+    prose. These are REAL facts from the run — callers pass None for
+    anything the machine cannot know."""
+    print("DEADEND_EVENT " + json.dumps(ev, default=str), flush=True)
+
+
+def parse_test_output(stdout: str) -> dict:
+    """pytest summary counts from real test output (pass/fail/total).
+    Unknown parses to None — never invented."""
+    counts: dict = {"passed": None, "failed": None, "errors": None,
+                    "total": None}
+    m = re.search(r"(\d+) passed", stdout)
+    if m:
+        counts["passed"] = int(m.group(1))
+    m = re.search(r"(\d+) failed", stdout)
+    if m:
+        counts["failed"] = int(m.group(1))
+    m = re.search(r"(\d+) error", stdout)
+    if m:
+        counts["errors"] = int(m.group(1))
+    m = re.search(r"====.*?(\d+) (?:passed|failed)", stdout)
+    if m and counts["passed"] is not None:
+        counts["total"] = counts["passed"] + (counts["failed"] or 0) + (counts["errors"] or 0)
+    elif counts["failed"] is not None:
+        counts["total"] = (counts["passed"] or 0) + counts["failed"] + (counts["errors"] or 0)
+    return counts
+
+
 @app.command()
 def run(
     repo: str,
@@ -102,7 +133,6 @@ def run(
     if not a.detect():
         typer.echo(f"agent CLI not detected on this machine: {a.AGENT}", err=True)
         raise typer.Exit(1)
-    caps = a.CAPS
     if setup_capture:
         info = setup_mod.setup_agent(a.AGENT, repo_abs)
         typer.echo(f"entire: {info.get('entire')}")
@@ -123,16 +153,40 @@ def run(
                 "env_fingerprint": _fingerprint(), "task": task,
                 "include_global": True, "budget_tokens": 1500})
             pack = _flatten(retrieve)
+            results = retrieve.get("results", []) or []
+            # real match facts only: per-result confidence + observation count
+            match_stats = [{
+                "entry_id": r.get("entry_id"),
+                "score": (r.get("confidence") or {}).get("score"),
+                "observations": (r.get("confidence") or {}).get("observations"),
+                "verified": r.get("verified"),
+                "scope": r.get("scope"),
+            } for r in results]
+            pack_tokens_est = retrieve.get("pack_tokens_est")
             run = _post("/runs", {"team_id": team_id, "task": task,
                                   "repo_url": repo_abs, "agent": a.AGENT})
             run_id = run.get("run_id")
             trace.run_id = run_id
             _post(f"/runs/{run_id}/events", {"phase": "retrieve",
-                  "payload": {"entries": len(retrieve.get("results", []))}})
+                  "payload": {"matches": len(results),
+                              "match_stats": match_stats,
+                              "pack_tokens_est": pack_tokens_est}})
+            emit({"phase": "retrieve", "run_id": run_id,
+                  "matches": len(results), "match_stats": match_stats,
+                  "pack_tokens_est": pack_tokens_est})
 
         # ---- inject context ------------------------------------------
         if run_id:
             a.inject_context(repo_abs, pack)
+            _post(f"/runs/{run_id}/events", {"phase": "inject",
+                  "payload": {"dead_ends": len(pack["dead_ends"]),
+                              "constraints": len(pack["constraints"]),
+                              "fixes": len(pack["fixes"])}})
+            emit({"phase": "inject", "run_id": run_id,
+                  "items": len(pack["dead_ends"]) + len(pack["constraints"]) + len(pack["fixes"]),
+                  "dead_ends": len(pack["dead_ends"]),
+                  "constraints": len(pack["constraints"]),
+                  "fixes": len(pack["fixes"])})
         try:
             # ---- attempt ---------------------------------------------
             cmd = a.build_command(task, repo_abs, pack, limits)
@@ -140,6 +194,8 @@ def run(
             if run_id:
                 _post(f"/runs/{run_id}/events", {"phase": "attempt",
                       "payload": {"attempt": 1, "cmd_head": cmd[:4]}})
+            emit({"phase": "attempt", "run_id": run_id,
+                  "cmd_head": cmd[:4], "wall_timeout_s": wall_timeout_s})
             timed_out = False
             proc = None
             try:
@@ -165,17 +221,23 @@ def run(
                       {"phase": "attempt-done",
                        "payload": {"rc": 124 if timed_out else proc.returncode,
                                    "tail": result.text[-1000:]}})
+            emit({"phase": "attempt-done", "run_id": run_id,
+                  "rc": 124 if timed_out else proc.returncode,
+                  "duration_s": round(duration_s, 1)})
 
             # ---- test -------------------------------------------------
             typer.echo(f"→ {tests_cmd}")
             t = subprocess.run([tests_cmd], cwd=repo_abs, shell=True,
                                capture_output=True, text=True, timeout=300)
             tests_ok = t.returncode == 0
+            test_counts = parse_test_output(t.stdout or "")
             if run_id:
                 _post(f"/runs/{run_id}/events",
                       {"phase": "test",
                        "payload": {"ok": tests_ok,
                                    "tail": (t.stdout or "")[-1000:]}})
+            emit({"phase": "test", "run_id": run_id, "ok": tests_ok,
+                  **test_counts})
             # ---- verify + record -------------------------------------
             status = "success" if tests_ok else "failure"
             if run_id:
@@ -188,6 +250,25 @@ def run(
                     "tokens_out": result.tokens_out,
                     "duration": duration_s,
                     "context_used": bool(pack["dead_ends"] or pack["fixes"])})
+            # record: only real capture ids the run actually produced.
+            # neatlogs: trace id is only known when the WORKFLOW span is real
+            # (neatlogs installed + key configured); otherwise null reasons.
+            nl_trace_id, nl_url = trace.neatlogs_trace_id()
+            _post(f"/runs/{run_id}/events", {"phase": "record",
+                  "payload": {"neatlogs_trace_id": nl_trace_id,
+                              "neatlogs_url": nl_url,
+                              "entire_checkpoint_id": trace.entire_checkpoint_id,
+                              "neatlogs": bool(nl_trace_id),
+                              "entire": bool(trace.entire_checkpoint_id),
+                              "why_not": trace.why_not()}})
+            emit({"phase": "record", "run_id": run_id,
+                  "neatlogs_trace_id": nl_trace_id, "neatlogs_url": nl_url,
+                  "entire_checkpoint_id": trace.entire_checkpoint_id,
+                  "why_not": trace.why_not()})
+            emit({"phase": "done", "run_id": run_id, "status": status,
+                  "agent": a.AGENT, "model": result.model,
+                  "tokens_in": result.tokens_in, "tokens_out": result.tokens_out,
+                  "duration_s": round(duration_s, 1)})
             # reuse attribution: when the run succeeded and a known fix was
             # retrieved, credit the top entry (agent name rides in the run
             # record; /runs already stores agent per run).

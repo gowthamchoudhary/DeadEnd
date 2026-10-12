@@ -17,9 +17,12 @@ class RunTrace:
                  neatlogs_api_key: str | None = None):
         self.agent = agent
         self.run_id = backend_run_id
-        self._events: list[dict] = []
+        self._events: list[dict] = {}
+        self._events_list: list[dict] = []
         self._api_key = neatlogs_api_key
         self._wf = None
+        self._wf_error: str | None = None
+        self.entire_checkpoint_id: str | None = None
 
     def __enter__(self):
         self.t0 = dt.datetime.now(dt.timezone.utc)
@@ -35,14 +38,46 @@ class RunTrace:
                                 "run_id": self.run_id or "",
                                 "started_at": self.t0.isoformat()})
                 self._wf.__enter__()
-            except Exception:
+            except Exception as ex:
                 self._wf = None
+                self._wf_error = f"neatlogs init failed: {ex}"[:200]
         except ImportError:
             self._wf = None
+            self._wf_error = "neatlogs not installed (pip install neatlogs)"
         return self
 
+    def neatlogs_trace_id(self) -> tuple[str | None, str | None]:
+        """(trace_id, url) when a real WORKFLOW span was created. The id is
+        read from the span object when neatlogs exposes one; anything the
+        SDK does not report stays None — never fabricated."""
+        if self._wf is None:
+            return None, None
+        tid = None
+        for attr in ("trace_id", "traceid", "workflow_id", "id"):
+            try:
+                v = getattr(self._wf, attr, None)
+                if isinstance(v, str) and v:
+                    tid = v
+                    break
+            except Exception:
+                pass
+        if tid:
+            return tid, f"https://ingest.neatlogs.com/traces/{tid}"
+        return None, None
+
+    def why_not(self) -> dict:
+        """Plain-language reasons a capture channel recorded nothing, for
+        the timeline UI. Empty dict = both channels recorded (or none apply)."""
+        out: dict = {}
+        if self._wf is None and self._wf_error:
+            out["neatlogs"] = self._wf_error
+        if self.entire_checkpoint_id is None:
+            out["entire"] = ("no Entire checkpoint: run `entire enable "
+                            f"--agent {self.agent}` in the repo")
+        return out
+
     def span(self, phase: str, **attrs):
-        self._events.append({"phase": phase, **attrs})
+        self._events_list.append({"phase": phase, **attrs})
         if self._wf is not None:
             try:
                 s = self._wf.child_span(phase, attributes={

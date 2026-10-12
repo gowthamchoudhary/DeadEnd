@@ -59,7 +59,7 @@ def create_run(body: RunIn, u=Depends(current_user), db: Session = Depends(get_d
 @router.post("/{run_id}/events")
 def append_event(run_id: str, body: EventIn, u=Depends(current_user),
                  db: Session = Depends(get_db)):
-    r = _owned_run(db, run_id, u.id)
+    _owned_run(db, run_id, u.id)
     seq = db.execute(select(RunEvent).where(RunEvent.run_id == run_id)
                      .order_by(RunEvent.seq.desc()).limit(1)).scalar_one_or_none()
     n = (seq.seq + 1) if seq else 0

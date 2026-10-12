@@ -1,5 +1,8 @@
 """Auth/session primitives: signed httpOnly cookie sessions, hashed
 per-user API tokens, token-bucket rate limiting, team membership checks."""
+
+from __future__ import annotations
+
 import datetime as dt
 import hashlib
 import secrets
@@ -17,7 +20,7 @@ from .db import get_db
 from .models import ApiToken, TeamMember, User
 
 S = get_settings()
-_SIGNER = None
+_SIGNER: TimestampSigner | None = None
 
 
 def _signer() -> TimestampSigner | None:

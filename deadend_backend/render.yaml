@@ -17,7 +17,7 @@ services:
       - key: DEADEND_GITHUB_CLIENT_SECRET
         sync: false
       - key: DEADEND_WEB_ORIGIN
-        sync: false          # e.g. https://deadend-web.vercel.app
+        sync: false          # e.g. https://dead-end-tau.vercel.app
       - key: DEADEND_BASE_URL
         sync: false          # e.g. https://deadend-4wyx.onrender.com
       - key: DEADEND_NEATLOGS_API_KEY
