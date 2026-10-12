@@ -85,12 +85,14 @@ export default function GettingStartedAppPage() {
         : st?.neatlogs_recorded === false ? "warn" : "pending",
       title: "neatlogs recording",
       detail: st?.neatlogs_recorded === true
-        ? "A recorded run carries a neatlogs trace id."
+        ? "A recorded run carries a Neatlogs trace created with the owner’s backend key."
         : st?.neatlogs_recorded === false
-        ? "Runs were recorded but no trace id — set NEATLOGS_API_KEY, then run once more."
-        : "No runs recorded yet. Get a project key from neatlogs and set NEATLOGS_API_KEY.",
-      cmd: st?.neatlogs_recorded === true ? undefined
-        : "export NEATLOGS_API_KEY=<your neatlogs project key>",
+        ? st.neatlogs_configured
+          ? "No trace was returned. Ask the project owner to check the backend key and project name."
+          : "The project owner must configure the Neatlogs key on the DeadEnd backend."
+        : st?.neatlogs_configured
+          ? "Owner key is configured centrally; your first run will create a trace."
+          : "Neatlogs is not configured yet. The project owner sets the key on the DeadEnd backend.",
       href: "/docs/getting-started#step-7",
       linkLabel: "Guide",
     },
