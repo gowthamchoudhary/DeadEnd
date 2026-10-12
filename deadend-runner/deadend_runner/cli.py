@@ -21,6 +21,7 @@ import typer
 
 from .adapters import ADAPTERS, Limits, get as get_adapter
 from .tracing import RunTrace
+from .entire_memory import EntireMemory
 
 app = typer.Typer(no_args_is_help=True)
 agents_app = typer.Typer(help="list / inspect supported agents", invoke_without_command=True)
@@ -214,6 +215,8 @@ def run(
     time0 = dt.datetime.now(dt.timezone.utc)
     retrieve: dict = {"results": []}
     run_id: str | None = None
+    entire_memory = EntireMemory(repo_abs)
+    entire_before = entire_memory.checkpoint_ids() if not no_deadend else set()
     with RunTrace(a.AGENT) as trace:
         # ---- retrieve (skipped for baseline runs) ------------------------
         if no_deadend:
@@ -227,6 +230,11 @@ def run(
                                  in ("1", "true", "yes"),
                 "budget_tokens": 1500})
             pack = _flatten(retrieve)
+            remaining_tokens = max(0, 1500 - int(retrieve.get("pack_tokens_est") or 0))
+            entire_result = entire_memory.search(task, limit=3,
+                                                  budget_tokens=remaining_tokens)
+            entire_sessions = entire_result.get("matches", [])
+            pack["entire_sessions"] = entire_sessions
             results = retrieve.get("results", []) or []
             # real match facts only: per-result confidence + observation count
             match_stats = [{
@@ -237,18 +245,43 @@ def run(
                 "scope": r.get("scope"),
                 "title": r.get("title"),
                 "signature": r.get("signature"),
+                "source": "deadend",
             } for r in results]
-            pack_tokens_est = retrieve.get("pack_tokens_est")
+            match_stats.extend({
+                "entry_id": m.get("entire_checkpoint_id"),
+                "score": m.get("score"),
+                "observations": None,
+                "verified": False,
+                "scope": "Entire session",
+                "title": m.get("title"),
+                "signature": m.get("snippet") or m.get("context", "")[:160],
+                "source": "entire",
+            } for m in entire_sessions)
+            # Entire transcript content and prompt-derived titles remain local.
+            # The backend receives only checkpoint references and numeric facts.
+            backend_match_stats = [{
+                "entry_id": m.get("entry_id"), "score": m.get("score"),
+                "source": m.get("source"), "scope": m.get("scope"),
+            } for m in match_stats]
+            pack_tokens_est = min(1500, int(retrieve.get("pack_tokens_est") or 0) +
+                                  sum(len(m.get("context", "")) for m in entire_sessions) // 4)
             run = _post("/runs", {"team_id": team_id, "task": task,
                                   "repo_url": repo_abs, "agent": a.AGENT})
             run_id = run.get("run_id")
             trace.run_id = run_id
             _post(f"/runs/{run_id}/events", {"phase": "retrieve",
-                  "payload": {"matches": len(results),
-                              "match_stats": match_stats,
+                  "payload": {"matches": len(results) + len(entire_sessions),
+                              "deadend_matches": len(results),
+                              "entire_matches": len(entire_sessions),
+                              "entire_reason": entire_result.get("reason"),
+                              "match_stats": backend_match_stats,
                               "pack_tokens_est": pack_tokens_est}})
             emit({"phase": "retrieve", "run_id": run_id,
-                  "matches": len(results), "match_stats": match_stats,
+                  "matches": len(results) + len(entire_sessions),
+                  "deadend_matches": len(results),
+                  "entire_matches": len(entire_sessions),
+                  "entire_reason": entire_result.get("reason"),
+                  "match_stats": match_stats,
                   "pack_tokens_est": pack_tokens_est})
 
         # ---- inject context ------------------------------------------
@@ -257,12 +290,14 @@ def run(
             _post(f"/runs/{run_id}/events", {"phase": "inject",
                   "payload": {"dead_ends": len(pack["dead_ends"]),
                               "constraints": len(pack["constraints"]),
-                              "fixes": len(pack["fixes"])}})
+                              "fixes": len(pack["fixes"]),
+                              "entire_sessions": len(pack.get("entire_sessions", []))}})
             emit({"phase": "inject", "run_id": run_id,
-                  "items": len(pack["dead_ends"]) + len(pack["constraints"]) + len(pack["fixes"]),
+                  "items": len(pack["dead_ends"]) + len(pack["constraints"]) + len(pack["fixes"]) + len(pack.get("entire_sessions", [])),
                   "dead_ends": len(pack["dead_ends"]),
                   "constraints": len(pack["constraints"]),
-                  "fixes": len(pack["fixes"])})
+                  "fixes": len(pack["fixes"]),
+                  "entire_sessions": len(pack.get("entire_sessions", []))})
         try:
             # ---- bounded attempt / test / repair loop ------------------
             max_attempts = 2
@@ -343,6 +378,8 @@ def run(
                     break
             # ---- verify + record -------------------------------------
             status = "success" if tests_ok else "failure"
+            trace.entire_checkpoint_id = entire_memory.new_checkpoint(entire_before)
+            trace.entire_reason = entire_memory.reason
             if run_id:
                 _post(f"/runs/{run_id}/finish?status={status}", {})
                 _post(f"/runs/{run_id}/summary", {
@@ -352,7 +389,8 @@ def run(
                     "tokens_in": result.tokens_in,
                     "tokens_out": result.tokens_out,
                     "duration": duration_s,
-                    "context_used": bool(pack["dead_ends"] or pack["fixes"])})
+                    "context_used": bool(pack["dead_ends"] or pack["fixes"] or
+                                          pack.get("entire_sessions"))})
             # record: only real capture ids the run actually produced.
             # neatlogs: trace id is only known when the WORKFLOW span is real
             # (neatlogs installed + key configured); otherwise null reasons.
@@ -421,6 +459,11 @@ def _agent_version(a) -> str | None:
 @agents_app.command("list")
 def agents_list():
     """List supported agents with detection status + capabilities."""
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        runner_version = version("deadend-runner")
+    except PackageNotFoundError:
+        runner_version = "source"
     rows = []
     for name in sorted(ADAPTERS):
         inst = get_adapter(name)
@@ -434,6 +477,8 @@ def agents_list():
             "tokens_reported": caps.tokens_reported,
             "turn_limit_flag": caps.turn_limit_flag,
             "instruction_file": caps.instruction_file,
+            "runner_version": runner_version,
+            "entire_session_search": True,
         })
     typer.echo(json.dumps(rows, indent=2))
 
