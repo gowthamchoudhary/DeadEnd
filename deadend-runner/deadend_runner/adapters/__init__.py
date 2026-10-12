@@ -1,6 +1,6 @@
 """Agent registry: lookup + detection across all supported adapters."""
 from .antigravity import AntigravityAdapter
-from .base import AgentAdapter
+from .base import AgentAdapter, Limits
 from .claude_code import ClaudeCodeAdapter
 from .codex import CodexAdapter
 from .copilot_cli import CopilotCLIAdapter
