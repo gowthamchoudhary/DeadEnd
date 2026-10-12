@@ -8,10 +8,12 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+import httpx
 
 from ..db import get_db
 from ..models import Run, RunEvent, TeamMember
 from ..security import current_user
+from ..config import get_settings
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -59,14 +61,81 @@ def create_run(body: RunIn, u=Depends(current_user), db: Session = Depends(get_d
 @router.post("/{run_id}/events")
 def append_event(run_id: str, body: EventIn, u=Depends(current_user),
                  db: Session = Depends(get_db)):
-    _owned_run(db, run_id, u.id)
+    run = _owned_run(db, run_id, u.id)
     seq = db.execute(select(RunEvent).where(RunEvent.run_id == run_id)
                      .order_by(RunEvent.seq.desc()).limit(1)).scalar_one_or_none()
     n = (seq.seq + 1) if seq else 0
-    db.add(RunEvent(run_id=run_id, seq=n, phase=body.phase, payload=body.payload))
+    event = RunEvent(run_id=run_id, seq=n, phase=body.phase, payload=body.payload)
+    db.add(event)
     db.commit()
+    capture = None
+    if body.phase == "record":
+        capture = _send_neatlogs_run_trace(run, db)
+        if capture is not None:
+            payload = dict(event.payload or {})
+            payload.update(capture)
+            event.payload = payload
+            db.commit()
     _notify(run_id)
-    return {"seq": n}
+    return {"seq": n, **(capture or {})}
+
+
+def _send_neatlogs_run_trace(run: Run, db: Session) -> dict:
+    """Send a privacy-limited run summary using the server-owned Neatlogs key.
+
+    Task text, terminal output, source files, and credentials are deliberately
+    excluded. A trace failure never fails the coding run.
+    """
+    settings = get_settings()
+    if not settings.neatlogs_api_key:
+        return {"neatlogs_configured": False, "neatlogs_trace_id": None,
+                "neatlogs_url": None, "neatlogs_error": "server key is not configured"}
+    events = db.execute(select(RunEvent).where(RunEvent.run_id == run.id)
+                        .order_by(RunEvent.seq)).scalars().all()
+    safe_fields = {
+        "retrieve": ("matches", "pack_tokens_est"),
+        "inject": ("items", "dead_ends", "constraints", "fixes"),
+        "attempt": ("attempt", "wall_timeout_s"),
+        "attempt-done": ("rc", "duration_s"),
+        "test": ("ok", "passed", "failed", "errors", "total"),
+        "verify": ("ok",),
+    }
+    children = []
+    for ev in events:
+        fields = safe_fields.get(ev.phase)
+        if fields is None:
+            continue
+        payload = ev.payload or {}
+        attrs = {key: payload[key] for key in fields if key in payload
+                 and isinstance(payload[key], (str, int, float, bool, type(None)))}
+        children.append({"name": ev.phase, "kind": "TASK",
+                         "attributes": {f"neatlogs.{key}": value
+                                        for key, value in attrs.items()}})
+    request_body = {
+        "project": settings.neatlogs_project,
+        "name": "deadend-agent-run",
+        "attributes": {"neatlogs.session.id": run.id,
+                       "neatlogs.agent.name": run.agent,
+                       "neatlogs.run.status": run.status,
+                       "neatlogs.run.tokens_in": run.tokens_in,
+                       "neatlogs.run.tokens_out": run.tokens_out,
+                       "neatlogs.run.duration_s": run.duration},
+        "children": children,
+    }
+    try:
+        response = httpx.post(
+            "https://ingest.neatlogs.com/v1/trace",
+            headers={"Authorization": f"Bearer {settings.neatlogs_api_key}"},
+            json=request_body, timeout=8.0)
+        response.raise_for_status()
+        data = response.json()
+        trace_id = data.get("trace_id")
+        return {"neatlogs_configured": True, "neatlogs_trace_id": trace_id,
+                "neatlogs_url": f"https://ingest.neatlogs.com/traces/{trace_id}" if trace_id else None,
+                "neatlogs_error": None if trace_id else "Neatlogs response had no trace id"}
+    except Exception as exc:
+        return {"neatlogs_configured": True, "neatlogs_trace_id": None,
+                "neatlogs_url": None, "neatlogs_error": str(exc)[:200]}
 
 
 @router.post("/{run_id}/finish")
