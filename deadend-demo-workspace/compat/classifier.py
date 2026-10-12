@@ -39,7 +39,11 @@ def classify_with_compat(message: str, priority_override: object = None) -> tupl
     from apps.classifier import classify_ticket
     category, priority, answer = classify_ticket(message)
     if priority_override is not None:
-        priority = _normalise_priority_input(priority_override)
+        override_priority = _normalise_priority_input(priority_override)
+        if priority == "high" and override_priority == "low":
+            pass  # Urgent tickets cannot be demoted to low
+        else:
+            priority = override_priority
     return category, priority, answer
 
 
