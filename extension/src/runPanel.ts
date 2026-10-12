@@ -209,9 +209,27 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
     const agent = this.setup!.agents.find((a) => a.detected)?.agent ?? "claude-code";
     const ch = getOrCreateOutputChannel();
     ch.show(true);
+    cp.execFile("entire", ["auth", "status", "--json"], { cwd: dir, timeout: 15_000 },
+      (authErr, authOut) => {
+        if (authErr && (authErr as NodeJS.ErrnoException).code === "ENOENT") {
+          this.installEntireCli(dir, agent, ch);
+          return;
+        }
+        let loggedIn = false;
+        try { loggedIn = !!JSON.parse(authOut || "{}").logged_in; } catch { /* login is required */ }
+        if (authErr || !loggedIn) {
+          const terminal = vscode.window.createTerminal({ name: "Entire login", cwd: dir });
+          terminal.show();
+          terminal.sendText("entire login");
+          void vscode.window.showInformationMessage(
+            "Sign in to Entire in the opened terminal, then click Enable Entire again to turn on capture and search.");
+          return;
+        }
+        enable();
+      });
     const enable = () => {
-      ch.appendLine(`$ entire enable --yes --agent ${agent} (in ${dir})`);
-      cp.execFile("entire", ["enable", "--yes", "--agent", agent],
+      ch.appendLine(`$ entire enable --yes --agent ${agent} --search-skill (in ${dir})`);
+      cp.execFile("entire", ["enable", "--yes", "--agent", agent, "--search-skill"],
         { cwd: dir, timeout: 60_000 }, (err, _o, stderr) => {
           if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
             this.installEntireCli(dir, agent, ch);
@@ -224,7 +242,6 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
           void this.refreshChecks(false);
         });
     };
-    enable();
   }
 
   /** Install Entire through its official Windows installer, then enable the
@@ -258,7 +275,7 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
           if (freshPath) process.env.PATH = freshPath + ";" + (process.env.PATH || "");
         } catch { /* enable below will give a clear missing-binary error */ }
         ch.appendLine("Entire CLI installed. Enabling repository hook…");
-        cp.execFile("entire", ["enable", "--yes", "--agent", agent],
+        cp.execFile("entire", ["enable", "--yes", "--agent", agent, "--search-skill"],
           { cwd: dir, timeout: 60_000 }, (enableErr, _out, enableStderr) => {
             ch.appendLine(enableErr ? `FAILED: ${enableStderr || enableErr.message}` : "OK");
             void vscode.window.showInformationMessage(enableErr
@@ -660,8 +677,15 @@ ${codiconLink(codiconUri?.toString())}
     const t0 = Date.now();
     if (ev.phase === "retrieve") {
       const box = upsertPhase("retrieve", "1 · Retrieve memory");
-      box.innerHTML = "<div>" + fmt(ev.matches, " match(es)") +
+      box.innerHTML = "<div>" + fmt(ev.matches, " context source(s)") +
+        " · DeadEnd " + fmt(ev.deadend_matches) + " / Entire " + fmt(ev.entire_matches) +
         " · est " + fmt(ev.pack_tokens_est) + " tok</div>";
+      if (ev.entire_reason && !ev.entire_matches) {
+        const note = document.createElement("div");
+        note.className = "muted";
+        note.textContent = "Entire search unavailable: " + ev.entire_reason;
+        box.appendChild(note);
+      }
       (ev.match_stats || []).slice(0, 4).forEach((m) => {
         const c = document.createElement("div");
         c.className = "memcard";
@@ -672,12 +696,15 @@ ${codiconLink(codiconUri?.toString())}
         title.textContent = m.title || m.signature || (m.entry_id || "Memory");
         const state = document.createElement("span");
         state.className = "pill " + (m.verified ? "ok" : "warn");
-        state.textContent = m.verified ? "verified" : "demo / unverified";
+        state.textContent = m.source === "entire" ? "Entire session" :
+          (m.verified ? "verified" : "demo / unverified");
         heading.append(title, state);
         const detail = document.createElement("div");
         detail.className = "muted";
-        detail.textContent = "score " + fmt(conf, "%") + " observations " +
-          fmt(m.observations, "") + " scope " + (m.scope || "?");
+        detail.textContent = m.source === "entire"
+          ? "Entire checkpoint " + (m.entry_id || "captured session")
+          : "score " + fmt(conf, "%") + " observations " +
+            fmt(m.observations, "") + " scope " + (m.scope || "?");
         const bar = document.createElement("div");
         bar.className = "confbar";
         const fill = document.createElement("div");
@@ -692,6 +719,7 @@ ${codiconLink(codiconUri?.toString())}
       for (let i = 0; i < (ev.dead_ends || 0); i++) chips.push("dead end");
       for (let i = 0; i < (ev.constraints || 0); i++) chips.push("constraint");
       for (let i = 0; i < (ev.fixes || 0); i++) chips.push("fix");
+      for (let i = 0; i < (ev.entire_sessions || 0); i++) chips.push("Entire session");
       box.innerHTML = '<div class="muted">' + fmt(ev.items, " item(s) context") + "</div>" +
         chips.slice(0, 10).map((c) => '<span class="chip">' + c + "</span>").join("");
     } else if (ev.phase === "attempt") {
