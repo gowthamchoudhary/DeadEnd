@@ -142,7 +142,7 @@ export class AuthController implements vscode.Disposable {
         await vscode.env.clipboard.writeText(userCode);
         this.log("code copied to clipboard");
       }
-    }).catch((ex) => this.log(`copy-code notification failed: ${msg(ex)}`));
+    }, (ex: unknown) => this.log(`copy-code notification failed: ${msg(ex)}`));
 
     const expiresMs = (start.expires_in ?? 900) * 1000;
     const deadline = Date.now() + expiresMs;
