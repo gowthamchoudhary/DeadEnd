@@ -199,15 +199,65 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
     const agent = this.setup!.agents.find((a) => a.detected)?.agent ?? "claude-code";
     const ch = getOrCreateOutputChannel();
     ch.show(true);
-    ch.appendLine(`$ entire enable --yes --agent ${agent} (in ${dir})`);
-    cp.exec(`entire enable --yes --agent ${agent}`, { cwd: dir, timeout: 60_000 },
-      (err, _o, stderr) => {
-        ch.appendLine(err ? `FAILED: ${stderr || err.message}` : "OK");
-        void vscode.window.showInformationMessage(
-          err ? "entire enable failed — see the DeadEnd output channel."
-              : "Entire enabled for this repository.");
-        void this.refreshChecks(false);
+    const enable = () => {
+      ch.appendLine(`$ entire enable --yes --agent ${agent} (in ${dir})`);
+      cp.execFile("entire", ["enable", "--yes", "--agent", agent],
+        { cwd: dir, timeout: 60_000 }, (err, _o, stderr) => {
+          if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+            this.installEntireCli(dir, agent, ch);
+            return;
+          }
+          ch.appendLine(err ? `FAILED: ${stderr || err.message}` : "OK");
+          void vscode.window.showInformationMessage(
+            err ? "Entire enable failed — see the DeadEnd output channel."
+                : "Entire enabled for this repository.");
+          void this.refreshChecks(false);
+        });
+    };
+    enable();
+  }
+
+  /** Install Entire through its official Windows installer, then enable the
+   * repo hook. The CLI remains local because it observes local agent/Git events. */
+  private installEntireCli(dir: string, agent: string, ch: vscode.OutputChannel): void {
+    if (process.platform !== "win32") {
+      void vscode.window.showErrorMessage(
+        "Entire CLI is missing. Install it from https://entire.io/about/cli, reopen VS Code, then enable Entire again.");
+      return;
+    }
+    void vscode.window.showInformationMessage(
+      "Entire CLI is missing. Install it from Entire’s official Windows installer, then enable this repo?",
+      "Install & Enable").then((choice) => {
+      if (choice !== "Install & Enable") return;
+      const installer = "irm https://entire.io/install.ps1 | iex";
+      ch.appendLine(`$ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${installer}"`);
+      cp.execFile("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-Command", installer], { cwd: dir, timeout: 180_000 }, (err, stdout, stderr) => {
+        if (stdout) ch.append(stdout);
+        if (stderr) ch.append(stderr);
+        if (err) {
+          ch.appendLine(`Entire CLI installation failed: ${err.message}`);
+          void vscode.window.showErrorMessage(
+            "Entire CLI install failed — see the DeadEnd output channel.");
+          return;
+        }
+        try {
+          const freshPath = cp.execFileSync("powershell.exe", ["-NoProfile", "-Command",
+            "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')"],
+          { encoding: "utf8" }).trim();
+          if (freshPath) process.env.PATH = freshPath + ";" + (process.env.PATH || "");
+        } catch { /* enable below will give a clear missing-binary error */ }
+        ch.appendLine("Entire CLI installed. Enabling repository hook…");
+        cp.execFile("entire", ["enable", "--yes", "--agent", agent],
+          { cwd: dir, timeout: 60_000 }, (enableErr, _out, enableStderr) => {
+            ch.appendLine(enableErr ? `FAILED: ${enableStderr || enableErr.message}` : "OK");
+            void vscode.window.showInformationMessage(enableErr
+              ? "Entire was installed, but repo setup failed — see the DeadEnd output channel."
+              : "Entire installed and enabled for this repository.");
+            void this.refreshChecks(false);
+          });
       });
+    });
   }
 
   // ---------------------------------------------------------- context preview
