@@ -173,10 +173,14 @@ export class DeadEndApi {
     return this.request("GET", `/auth/device/poll?device_code=${encodeURIComponent(deviceCode)}`);
   }
 
-  /** Token is delivered exactly once, after approval. openapi.json says
-   * POST with a JSON body. */
+  /** Token is delivered after approval. The backend declares device_code as
+   * a query parameter on this POST endpoint. */
   deviceResume(deviceCode: string): Promise<{ token: string; team_id?: string; reissued?: boolean }> {
-    return this.request("POST", "/auth/device/resume", { device_code: deviceCode });
+    return this.request(
+      "POST",
+      `/auth/device/resume?device_code=${encodeURIComponent(deviceCode)}`,
+      {},
+    );
   }
 
   me(): Promise<MeResp> {
