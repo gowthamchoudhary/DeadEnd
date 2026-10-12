@@ -428,18 +428,20 @@ ${codiconLink(codiconUri?.toString())}
     <label for="kill" style="margin:0;font-weight:400">Stop injecting memories (blocks injection for all runs until cleared)</label>
   </div>
 
-  <div id="checksCard" class="card">
-    <div class="row spread">
-      <h4 style="margin:0">Setup</h4>
+  <details id="setupDetails" class="card">
+    <summary class="row spread"><strong>Workspace setup</strong>
+      <span class="muted">status & integrations</span></summary>
+    <div class="row spread" style="margin-top:8px">
+      <span class="muted">Refresh backend, runner, and repository checks</span>
       <button class="secondary" id="refreshChecks"><span class="codicon codicon-refresh"></span> Refresh</button>
     </div>
     <div id="checks"></div>
-  </div>
+  </details>
 
   <div id="runControls" class="card">
-    <h4 style="margin-top:0">Run</h4>
-    <label for="task">Task</label>
-    <textarea id="task" placeholder="Describe the bug or task…"></textarea>
+    <div class="eyebrow">DEADEND RUNNER</div><h3 style="margin-top:3px">Start a coding run</h3>
+    <label for="task">What should the agent do?</label>
+    <textarea id="task" placeholder="Describe the change or bug to investigate…"></textarea>
     <label for="agent">Agent</label>
     <select id="agent"></select>
     <div id="agentNote" class="hint" style="margin-top:3px"></div>
@@ -462,7 +464,7 @@ ${codiconLink(codiconUri?.toString())}
     <div id="preview" class="hidden" style="margin-top:8px"></div>
   </div>
 
-  <h4>Timeline</h4>
+  <div class="section-heading"><h3>Run activity</h3><span class="muted">live events</span></div>
   <div id="timeline" class="timeline"></div>
   <div id="footer" class="footer hidden"></div>
 
@@ -527,18 +529,18 @@ ${codiconLink(codiconUri?.toString())}
   }
 
   // ------------------------------------------------------------- timeline
-  function phaseCard(phase, title) {
+  function phaseCard(phase, title, suffix) {
     const wrap = document.createElement("div");
     wrap.className = "phase card";
-    wrap.id = "phase-" + phase;
+    wrap.id = "phase-" + phase + (suffix ? "-" + suffix : "");
     wrap.innerHTML = '<div class="head"><span class="codicon codicon-circle-filled"></span> ' +
       title + ' <span class="muted" data-clock=""></span></div><div class="body"></div>';
     $("timeline").appendChild(wrap);
     return wrap.querySelector(".body");
   }
-  function upsertPhase(phase, title) {
-    return $("phase-" + phase) ? $("phase-" + phase).querySelector(".body")
-      : phaseCard(phase, title);
+  function upsertPhase(phase, title, suffix) {
+    const id = "phase-" + phase + (suffix ? "-" + suffix : "");
+    return $(id) ? $(id).querySelector(".body") : phaseCard(phase, title, suffix);
   }
   function clockTick() {
     document.querySelectorAll(".phase").forEach((p) => {
@@ -554,7 +556,7 @@ ${codiconLink(codiconUri?.toString())}
   function onRunnerEvent(ev) {
     const t0 = Date.now();
     if (ev.phase === "retrieve") {
-      const box = upsertPhase("retrieve", "retrieve");
+      const box = upsertPhase("retrieve", "1 · Retrieve memory");
       box.innerHTML = "<div>" + fmt(ev.matches, " match(es)") +
         " · est " + fmt(ev.pack_tokens_est) + " tok</div>";
       (ev.match_stats || []).slice(0, 4).forEach((m) => {
@@ -569,7 +571,7 @@ ${codiconLink(codiconUri?.toString())}
         box.appendChild(c);
       });
     } else if (ev.phase === "inject") {
-      const box = upsertPhase("inject", "inject");
+      const box = upsertPhase("inject", "2 · Inject context");
       const chips = [];
       for (let i = 0; i < (ev.dead_ends || 0); i++) chips.push("dead end");
       for (let i = 0; i < (ev.constraints || 0); i++) chips.push("constraint");
@@ -577,34 +579,44 @@ ${codiconLink(codiconUri?.toString())}
       box.innerHTML = '<div class="muted">' + fmt(ev.items, " item(s) context") + "</div>" +
         chips.slice(0, 10).map((c) => '<span class="chip">' + c + "</span>").join("");
     } else if (ev.phase === "attempt") {
-      const box = upsertPhase("attempt", "attempt");
+      const num = ev.attempt || 1;
+      const box = upsertPhase("attempt", "3 · Agent attempt " + num, num);
       box.innerHTML = '<div class="muted">agent running · cap ' +
         fmt(ev.wall_timeout_s, "s") + "</div><ul class='steps' id='steps'></ul>";
-      $("phase-attempt").dataset.t0 = String(t0);
+      $("phase-attempt-" + num).dataset.t0 = String(t0);
     } else if (ev.phase === "attempt-done") {
-      const p = $("phase-attempt");
+      const num = ev.attempt || 1;
+      const p = $("phase-attempt-" + num);
       if (p) { p.dataset.done = "1"; }
-      const box = upsertPhase("attempt", "attempt");
+      const box = upsertPhase("attempt", "3 · Agent attempt " + num, num);
       box.innerHTML += "<div>exit " + fmt(ev.rc) + " · " + fmt(ev.duration_s, "s") + "</div>";
     } else if (ev.phase === "test") {
-      const box = upsertPhase("test", "test");
+      const box = upsertPhase("test", "4 · Tests · attempt " + (ev.attempt || 1), ev.attempt || 1);
       box.innerHTML = pill(ev.ok ? "ok" : "bad", ev.ok ? "passed" : "failed") +
         '<div class="muted" style="margin-top:4px">' +
         fmt(ev.total, " test(s)") + " · passed " + fmt(ev.passed) +
         " · failed " + fmt(ev.failed) + " · errors " + fmt(ev.errors) + "</div>";
+    } else if (ev.phase === "iteration") {
+      const box = upsertPhase("iteration", "Repair iteration " + ev.attempt, ev.attempt);
+      box.innerHTML = '<div class="muted">' + (ev.reason || "Verification failed; agent is retrying") + "</div>";
+    } else if (ev.phase === "verify") {
+      const box = upsertPhase("verify", "5 · Verification · attempt " + (ev.attempt || 1), ev.attempt || 1);
+      box.innerHTML = pill(ev.ok ? "ok" : "bad", ev.ok ? "checks passed" : "checks failed") +
+        '<div class="muted">' + (ev.source || "Configured test command") + "</div>";
     } else if (ev.phase === "record") {
-      const box = upsertPhase("record", "record");
+      const box = upsertPhase("record", "6 · Record run");
       let html = "";
       if (ev.neatlogs_trace_id) {
-        html += pill("ok", "neatlogs · trace " + ev.neatlogs_trace_id.slice(0, 10)) + " ";
+        html += pill("ok", "Neatlogs · trace " + ev.neatlogs_trace_id.slice(0, 10)) + " ";
       } else {
-        html += pill("warn", "neatlogs · no trace") + '<div class="muted">' +
-          ((ev.why_not || {}).neatlogs || "not reported") + "</div>";
+        html += pill(ev.neatlogs_configured === false ? "bad" : "warn",
+          ev.neatlogs_configured === false ? "Neatlogs key missing on backend" : "Neatlogs trace unavailable") +
+          '<div class="muted">' + (ev.neatlogs_error || "The backend did not return a trace ID") + "</div>";
       }
       if (ev.entire_checkpoint_id) {
-        html += pill("ok", "entire · checkpoint " + ev.entire_checkpoint_id.slice(0, 10));
+        html += pill("ok", "Entire · checkpoint " + ev.entire_checkpoint_id.slice(0, 10));
       } else {
-        html += pill("warn", "entire · no checkpoint") + '<div class="muted">' +
+        html += pill("warn", "Entire · no checkpoint for this run") + '<div class="muted">' +
           ((ev.why_not || {}).entire || "not reported") + "</div>";
       }
       box.innerHTML = html;
