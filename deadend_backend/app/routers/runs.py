@@ -93,12 +93,13 @@ def _send_neatlogs_run_trace(run: Run, db: Session) -> dict:
     events = db.execute(select(RunEvent).where(RunEvent.run_id == run.id)
                         .order_by(RunEvent.seq)).scalars().all()
     safe_fields = {
-        "retrieve": ("matches", "pack_tokens_est"),
-        "inject": ("items", "dead_ends", "constraints", "fixes"),
+        "retrieve": ("matches", "deadend_matches", "entire_matches", "pack_tokens_est"),
+        "inject": ("items", "dead_ends", "constraints", "fixes", "entire_sessions"),
         "attempt": ("attempt", "wall_timeout_s"),
         "attempt-done": ("rc", "duration_s"),
         "test": ("ok", "passed", "failed", "errors", "total"),
         "verify": ("ok",),
+        "record": ("entire_checkpoint_id", "entire", "neatlogs"),
     }
     children = []
     for ev in events:
@@ -119,7 +120,10 @@ def _send_neatlogs_run_trace(run: Run, db: Session) -> dict:
                        "neatlogs.run.status": run.status,
                        "neatlogs.run.tokens_in": run.tokens_in,
                        "neatlogs.run.tokens_out": run.tokens_out,
-                       "neatlogs.run.duration_s": run.duration},
+                       "neatlogs.run.duration_s": run.duration,
+                       "neatlogs.entire.checkpoint_id": next((
+                           (ev.payload or {}).get("entire_checkpoint_id")
+                           for ev in reversed(events) if ev.phase == "record"), None)},
         "children": children,
     }
     try:
