@@ -127,14 +127,18 @@ def auth_callback(code: str, state: str = "", request: Request = None,
 def device_start(team_id: str | None = None, db: Session = Depends(get_db)):
     dc = secrets.token_urlsafe(24)
     uc = "-".join(secrets.token_hex(2).upper() for _ in range(3))
+    now = dt.datetime.now(dt.timezone.utc)
     db.add(DeviceCode(device_code=dc, user_code=uc, team_id=team_id,
-                      expires_at=dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=15)))
+                      expires_at=now + dt.timedelta(minutes=15),
+                      first_attempt_at=now,
+                      last_delivery_at=None,
+                      deliveries=0))
     db.commit()
     # approval happens on the WEB app (session-cookie auth there),
     # not on the backend directly
     return {"device_code": dc, "user_code": uc,
             "approve_url": f"{S.web_origin.rstrip('/')}/device?code={uc}",
-            "interval": 3, "expires_in": 900}
+            "interval": 3, "expires_in": 900, "status": "pending"}
 
 
 @router.get("/device/poll")
@@ -155,7 +159,7 @@ def device_approve(request: Request, user_code: str, team_id: str | None = None,
     if not d or d.expires_at < dt.datetime.now(dt.timezone.utc):
         raise HTTPException(410, "device code expired")
     if d.status == "approved":
-        return {"status": "approved"}
+        return {"status": "approved", "team_id": d.team_id}
     team_id = team_id or d.team_id
     if not team_id:
         raise HTTPException(400, "team_id required to scope the token")
@@ -174,17 +178,58 @@ def device_approve(request: Request, user_code: str, team_id: str | None = None,
 
 @router.post("/device/resume")
 def device_resume(device_code: str, db: Session = Depends(get_db)):
-    """After approval, return the plaintext device token exactly once."""
+    """After approval, return the plaintext device token for the extension.
+
+    Idempotent within a short window: if the previous token was delivered
+    within the last 2 minutes, revoke it and issue a fresh one for the same
+    approved device code. Outside that window, keep the strict one-time
+    delivery (returning the error seen before this change so callers fail
+    loudly rather than mysteriously looping forever).
+    """
     d = db.get(DeviceCode, device_code)
     if not d or d.status != "approved":
         raise HTTPException(404, "not approved yet")
     if not d.device_token_cipher:
-        raise HTTPException(409, "token already delivered once")
+        # Already delivered in the past a non-recent time — strict one-time
+        # delivery. Return the rub: the token was created but never used.
+        raise HTTPException(409, "token already delivered once — re-sign in to get a fresh device code")
+    now = dt.datetime.now(dt.timezone.utc)
+    within_replay_window = (d.last_delivery_at is not None and
+                            now - d.last_delivery_at < dt.timedelta(minutes=2))
+    if within_replay_window:
+        # Fresh token for the same device code: revoke the previous one and
+        # overwrite with a fresh token, re-encrypt, reset the delivery marker
+        # so the next call stays strictly one-time until acceptance types in.
+        prev_id = d.api_token_id
+        if prev_id:
+            prev = db.get(ApiToken, prev_id)
+            if prev and prev.user_id == d.approved_by:
+                prev.revoked_at = now
+                db.add(prev)
+                db.add(AuditLog(actor=d.approved_by, action="api_token_revoked",
+                                target=prev.id))
+        plain, sha = new_api_token()
+        t = ApiToken(user_id=d.approved_by, token_sha256=sha, label="device",
+                     scopes={"teams": [d.team_id]})
+        db.add(t)
+        db.flush()
+        t._plain = plain
+        d.api_token_id = t.id
+        d.device_token_cipher = _encrypt_token(plain)
+        d.last_delivery_at = now
+        db.add(d)
+        db.commit()
+        return {"token": plain, "team_id": d.team_id, "reissued": True}
+
+    # Strict one-time delivery: consume the cipher and return the plaintext
+    # exactly once.
     plain = _decrypt_token(d.device_token_cipher)
     d.device_token_cipher = None
+    d.last_delivery_at = now
+    d.deliveries = (d.deliveries or 0) + 1
     db.add(d)
     db.commit()
-    return {"token": plain, "team_id": d.team_id}
+    return {"token": plain, "team_id": d.team_id, "reissued": False}
 
 
 @router.get("/me")
