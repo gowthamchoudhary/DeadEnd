@@ -176,7 +176,7 @@ export class DeadEndApi {
   /** Token is delivered exactly once, after approval. openapi.json says
    * POST with a JSON body. */
   deviceResume(deviceCode: string): Promise<{ token: string; team_id?: string; reissued?: boolean }> {
-    return this.request("POST", "/auth/device/resume", { device_code: deviceCode });
+    return this.request("POST", `/auth/device/resume?device_code=${encodeURIComponent(deviceCode)}`, {});
   }
 
   me(): Promise<MeResp> {
