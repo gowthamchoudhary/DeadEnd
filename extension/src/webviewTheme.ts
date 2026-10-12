@@ -22,9 +22,9 @@ body {
   font-size: var(--vscode-font-size, 13px);
   color: var(--vscode-foreground);
   background: var(--vscode-sideBar-background);
-  margin: 0; padding: 10px 12px 24px;
+  margin: 0; padding: 14px 14px 28px; line-height: 1.45;
 }
-h3 { font-size: 1em; margin: 14px 0 6px; font-weight: 600; }
+h3 { font-size: 1.05em; margin: 14px 0 6px; font-weight: 650; }
 h4 { font-size: 0.95em; margin: 12px 0 4px; font-weight: 600; }
 code { font-family: var(--vscode-editor-font-family); font-size: 0.92em;
        background: var(--vscode-textCodeBlock-background); padding: 1px 4px;
@@ -34,7 +34,8 @@ a { color: var(--vscode-textLink-foreground); }
 .card {
   background: var(--vscode-editor-background);
   border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35));
-  border-radius: 6px; padding: 10px 12px; margin: 8px 0;
+  border-radius: 9px; padding: 12px 13px; margin: 9px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
   transition: border-color var(--dd-transition);
 }
 .card:hover { border-color: var(--vscode-focusBorder); }
@@ -88,6 +89,16 @@ label { display: block; margin: 8px 0 2px; font-weight: 500; }
   display: flex; align-items: flex-start; gap: 8px; padding: 6px 0;
   border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.2));
 }
+.eyebrow { color: var(--vscode-descriptionForeground); letter-spacing: .11em;
+  font-size: .72em; font-weight: 700; }
+.section-heading { display: flex; align-items: baseline; justify-content: space-between;
+  margin-top: 18px; }
+details.card { padding: 10px 12px; }
+details summary { list-style: none; cursor: pointer; }
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: "›"; display: inline-block; margin-right: 7px;
+  color: var(--vscode-descriptionForeground); transition: transform var(--dd-transition); }
+details[open] summary::before { transform: rotate(90deg); }
 .check:last-child { border-bottom: none; }
 .check .body { flex: 1; min-width: 0; }
 .check .hint { color: var(--vscode-descriptionForeground); font-size: 0.85em; margin-top: 2px; }
@@ -96,9 +107,11 @@ label { display: block; margin: 8px 0 2px; font-weight: 500; }
 .timeline { position: relative; margin: 8px 0 0 8px; padding-left: 18px;
   border-left: 2px solid var(--vscode-panel-border, rgba(128,128,128,.35)); }
 .phase { opacity: 0; transform: translateY(6px);
-  animation: phaseIn 220ms ease forwards; margin-bottom: 10px; }
+  animation: phaseIn 220ms ease forwards; margin-bottom: 10px; padding: 10px 11px;
+  border-radius: 8px; }
 @keyframes phaseIn { to { opacity: 1; transform: none; } }
 .phase .head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.phase .head .codicon { color: var(--vscode-charts-blue, var(--vscode-textLink-foreground)); }
 .phase .muted { color: var(--vscode-descriptionForeground); font-weight: 400; }
 .chip {
   display: inline-block; padding: 2px 8px; margin: 2px 3px 2px 0;
