@@ -1,11 +1,16 @@
 # DeadEnd Backend (FastAPI, Render + Supabase Postgres)
 
-FastAPI backend for the public DeadEnd product. Your agents run on YOUR
-machine (`deadend-runner`); this backend stores failures/attempts/fixes/
-constraints/reuse events in Postgres (Supabase) with pgvector embeddings,
-records privacy-limited run metrics and Curator/Verifier/promoter steps in Neatlogs,
-and reads/
-publishes Entire checkpoints via documented CLI/remote only.
+FastAPI backend for the public DeadEnd product. Entire is the source of the
+raw coding-session history: agent hooks capture prompts, tool calls, edits,
+and checkpoints, while the local `deadend-runner` searches Entire and reads
+matching transcript excerpts on the developer's machine. Raw Entire
+transcripts do not pass through this backend.
+
+This service owns account/team access, the structured curated-memory index,
+verification and reuse metadata, live run history, and approved sharing.
+Supabase Postgres stores that index and product metadata. Neatlogs receives
+privacy-limited run and curation traces. Approved global curated fixes are
+also published to the configured Entire-backed archive.
 
 ## Deploy (Render)
 
