@@ -3,7 +3,8 @@
 FastAPI backend for the public DeadEnd product. Your agents run on YOUR
 machine (`deadend-runner`); this backend stores failures/attempts/fixes/
 constraints/reuse events in Postgres (Supabase) with pgvector embeddings,
-traces its own Curator/Verifier/promoter steps in neatlogs, and reads/
+records privacy-limited run metrics and Curator/Verifier/promoter steps in Neatlogs,
+and reads/
 publishes Entire checkpoints via documented CLI/remote only.
 
 ## Deploy (Render)
@@ -24,7 +25,8 @@ publishes Entire checkpoints via documented CLI/remote only.
 | `DEADEND_DATABASE_URL` | Supabase pooled Postgres URL |
 | `DEADEND_AUTH_SECRET` | signs session cookies / OAuth state |
 | `DEADEND_GITHUB_CLIENT_ID/SECRET` | GitHub OAuth app |
-| `DEADEND_NEATLOGS_API_KEY` | neatlogs project key (Curator/Verifier/promoter WORKFLOW spans via MCP+SDK) |
+| `DEADEND_NEATLOGS_API_KEY` | owner’s Neatlogs write key; kept server-side for run and Curator/Verifier tracing |
+| `DEADEND_NEATLOGS_PROJECT` | Neatlogs project name for run traces (default `DeadEnd`) |
 | `DEADEND_ENTIRE_GLOBAL_REMOTE` | `entire://…deadend-global` for service-account publishing |
 | `DEADEND_MAX_BODY_BYTES` | request size cap (default 1MB) |
 | `DEADEND_RATE_LIMIT_PER_MIN` | per-user rate limit |
