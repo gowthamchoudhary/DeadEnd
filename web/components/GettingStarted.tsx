@@ -181,12 +181,13 @@ export function GettingStartedDoc() {
 
       <Step n={8} title="Enable Entire in your repo">
         <p>
-          Run this once in the repo (swap <code className="font-mono text-text-primary">claude-code</code>{" "}
+          Sign in once with <code className="font-mono text-text-primary">entire login</code>, then run this in the repo (swap <code className="font-mono text-text-primary">claude-code</code>{" "}
           for your agent — codex, opencode, pi, antigravity, copilot-cli). It
-          writes that agent&apos;s hooks so every checkpoint — prompts,
-          decisions, diff — is recorded with your commits:
+          enables the agent capture hooks and Entire search skill. Sessions,
+          prompts, tool calls, edits, and checkpoints become searchable work
+          history that DeadEnd retrieves before later runs:
         </p>
-        <Copyable text="entire enable --agent claude-code" />
+        <Copyable text="entire enable --agent claude-code --search-skill" />
         <p>
           The extension&apos;s setup checklist has an <strong>Enable Entire</strong>{" "}
           button that runs exactly this in your workspace and shows the real
