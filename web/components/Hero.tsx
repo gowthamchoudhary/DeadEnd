@@ -5,10 +5,12 @@
  * fading to ink where the dashboard panel overlaps the bottom edge.
  * Type is dark on the light gradient (CSS in globals.css for the grain). */
 import { motion } from "framer-motion";
+// direct VSIX download — the same constant the Download section bakes in
+// (components/Download.tsx: version/size/sha256, set at package time)
+import { VSIX_RELEASE_URL } from "./Download";
 
 const AUTH_HREF = "/api/auth/github";
-// direct VSIX download (see components/Download.tsx for version/size/sum)
-const DOWNLOAD_HREF = "/downloads/deadend-0.1.0.vsix";
+const DOWNLOAD_HREF = VSIX_RELEASE_URL;
 
 /** Painted top → bottom: overlays first, ink base last. */
 const MESH = [

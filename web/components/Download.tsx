@@ -5,9 +5,9 @@
  * scripts/copy-vsix.sh at package time (see inline constants). The
  * self-contained sources of truth are the copies in /downloads. */
 export const VSIX_RELEASE_URL = "/downloads/deadend-0.2.0.vsix";
-const VSIX_SHA256 = "c6482fedacdef6ecaf72b6c390792a90ca2e5c6fb91f8532a1f2eb9bb259fe6f";
-const VSIX_SIZE = "36 KB";
-const VSIX_VERSION = "0.2.0";
+export const VSIX_SHA256 = "c6482fedacdef6ecaf72b6c390792a90ca2e5c6fb91f8532a1f2eb9bb259fe6f";
+export const VSIX_SIZE = "36 KB";
+export const VSIX_VERSION = "0.2.0";
 
 export function Download() {
   return (
@@ -29,6 +29,7 @@ export function Download() {
               Download extension
             </a>
             <a href="#platforms" className="pill-outline px-5 py-2 text-small">Supported agents</a>
+            <a href="/docs/getting-started" className="pill-outline px-5 py-2 text-small">Getting started guide</a>
           </div>
           <p className="mt-3 text-tiny text-text-muted font-mono">
             v{VSIX_VERSION} · {VSIX_SIZE} · sha256 {VSIX_SHA256.slice(0, 16)}…

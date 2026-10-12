@@ -43,7 +43,7 @@ export default function OverviewPage() {
         <Empty
           title="Nothing recorded yet"
           body="Once your first agent run records a failure, or the extension captures a memory, these cards fill in with real numbers."
-          cta={{ label: "How to get started", href: "#get-started" }}
+          cta={{ label: "How to get started", href: "/app/getting-started" }}
         />
       )}
 
@@ -109,24 +109,22 @@ export default function OverviewPage() {
         </section>
       </div>
 
-      {/* how to get started — progress from real data */}
+      {/* how to get started — the live checklist lives on its own page */}
       <section id="get-started">
         <SectionTitle>How to get started</SectionTitle>
-        <Card className="divide-y divide-line-900">
-          <Step done title="Signed in"
-            detail={`GitHub identity: ${ov?.teams?.length ? "you are in a team" : "no team yet"}`}
-            href={undefined} />
-          <Step done={!!ov?.tokens} title="Extension connected"
-            detail={ov?.tokens
-              ? "An API token exists for your account."
-              : "Install the VS Code extension and approve the device code — that creates your first token."}
-            href="/app/settings" linkLabel="Settings" />
-          <Step done={!!runs?.total} title="First run recorded"
-            detail={runs?.total ? `${runs.total} runs in your teams.` : "Run an agent through deadend-runner or the extension."}
-            href="/app/runs" linkLabel="Runs" />
-          <Step done={!!entries?.private} title="First memory stored"
-            detail={entries?.private ? `${entries.private} private memories.` : "A failed attempt with a verified fix becomes a memory."}
-            href="/app/memories" linkLabel="Memories" />
+        <Card className="px-4 py-4 flex flex-wrap items-center gap-3">
+          <div className="min-w-0">
+            <div className="text-small text-text-primary">Follow the live setup checklist</div>
+            <p className="text-tiny text-text-muted mt-0.5">
+              The same steps as the public guide, with each row marked done
+              from your real data — tokens, teams, recorded runs and capture
+              status.
+            </p>
+          </div>
+          <Link href="/app/getting-started"
+            className="pill-fill ml-auto px-4 py-1.5 text-small font-medium">
+            Open checklist
+          </Link>
         </Card>
       </section>
     </div>
@@ -141,36 +139,6 @@ function Stat({ label, value, hint }: { label: string; value: string | null; hin
         {value ?? <span className="text-body font-normal text-text-muted">no data yet</span>}
       </div>
       {hint && <div className="text-tiny text-text-muted mt-0.5">{hint}</div>}
-    </div>
-  );
-}
-
-function Step({ done, title, detail, href, linkLabel }: {
-  done: boolean; title: string; detail: string; href?: string; linkLabel?: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 px-4 py-3.5">
-      <span className={`mt-1 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-        done ? "border-brand-success text-brand-success" : "border-line-700"}`}
-        aria-hidden>
-        {done && (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2 5.2l2 2 4-4.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        )}
-      </span>
-      <div className="min-w-0">
-        <div className="text-small font-medium flex items-center gap-2">
-          {title}
-          <span className="text-tiny text-text-muted font-normal">{done ? "done" : "pending"}</span>
-        </div>
-        <p className="text-tiny text-text-muted mt-0.5">{detail}</p>
-      </div>
-      {href && (
-        <Link href={href} className="ml-auto text-tiny text-text-secondary hover:text-text-primary shrink-0">
-          {linkLabel ?? "open"} →
-        </Link>
-      )}
     </div>
   );
 }

@@ -187,6 +187,15 @@ export interface TokenItem {
   token_id: string; label: string; created_at: string; revoked: boolean;
   last_used_at: string | null; scopes?: Record<string, unknown>;
 }
+/** GET /me/setup-status — real per-user setup facts (the same route the
+ * VS Code extension's checklist reads). null = never recorded yet,
+ * NOT false. */
+export interface SetupStatusResp {
+  tokens_count: number;
+  teams: { team_id: string; name: string; role: string }[];
+  neatlogs_recorded: boolean | null;
+  entire_recorded: boolean | null;
+}
 export interface TeamSettings {
   team_id: string; default_share: "off" | "team" | "global-after-approval";
 }
@@ -201,6 +210,7 @@ export interface EntryQuery {
 export const api = {
   me: () => get<MeResp>("/auth/me"),
   overview: () => get<Overview>("/me/overview"),
+  setupStatus: () => get<SetupStatusResp>("/me/setup-status"),
 
   /* tokens */
   tokens: () => get<TokenItem[]>("/auth/tokens"),
