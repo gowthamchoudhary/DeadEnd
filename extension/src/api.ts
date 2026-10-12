@@ -183,8 +183,17 @@ export class DeadEndApi {
     return this.request("GET", "/auth/me");
   }
 
-  health(): Promise<boolean> {
-    return this.request<boolean>("GET", "/health");
+  health(): Promise<{ status: string }> {
+    return this.request<{ status: string }>("GET", "/health");
+  }
+
+  /**
+   * Wake check used before device flow. Kept separate from `health()` so
+   * the caller can decide how long to wait / how many retries to use; the
+   * endpoint it calls is the same GET /health.
+   */
+  healthz(): Promise<{ status: string }> {
+    return this.request<{ status: string }>("GET", "/healthz");
   }
 
   // ----------------------------------------------------------------- context

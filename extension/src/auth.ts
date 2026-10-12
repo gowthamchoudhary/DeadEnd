@@ -108,10 +108,10 @@ export class AuthController implements vscode.Disposable {
     const teamId = await this.store.getTeam();
 
     this.log("sign-in: starting device flow");
-    // Cold start: healthcheck first, then the actual device request.
-    // If /healthz fails, the backend is wakeable; /device/start still
-    // tries, but may 500 until the instance is up — that's surfaced, not
-    // swallowed.
+    // Cold start: hit the actual endpoint used for wake detection first,
+    // then the real device request. If GET /health times out, the backend
+    // is wakeable; /device/start still tries, but may 500 until the
+    // instance is up — that's surfaced, not swallowed.
     const backendOk = await this.healthCheck();
     if (!backendOk) {
       void vscode.window.showWarningMessage(
@@ -228,7 +228,9 @@ export class AuthController implements vscode.Disposable {
     deviceCode: string,
     resumeRetries = 6,
   ): Promise<{ token: string; team_id?: string } | null> {
-    // If it is approved, go straight to resume.
+    // If it is approved, go straight to resume. Poll up to three times
+    // immediately so a user who just approved the flow in their browser
+    // does not sit on a stale pending state.
     for (let i = 0; i < 3; i++) {
       try {
         const p = await this.api.devicePoll(deviceCode);
