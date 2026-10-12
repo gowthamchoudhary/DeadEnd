@@ -97,6 +97,15 @@ export interface PromoteResp {
   status: string;
   diff?: Record<string, unknown>;
 }
+export interface IngestResp {
+  entry_id?: string | null;
+  signature_hash?: string;
+  duplicate?: boolean;
+  skipped?: string;
+  quarantined?: boolean;
+  quarantine_id?: string;
+  reasons?: Record<string, unknown>;
+}
 export type AgentStats = {
   runs: number; success_rate: number | null; avg_attempts: number | null;
   avg_tokens: number | null; max_tokens: number | null; avg_duration_s: number | null;
@@ -248,6 +257,12 @@ export class DeadEndApi {
 
   promoteApprove(body: { contribution_id: string }): Promise<{ published: boolean }> {
     return this.request("POST", "/promote/approve", body);
+  }
+
+  /** Curate an explicitly selected recorded run into a private memory. */
+  ingest(body: { team_id: string; trace_id: string; checkpoint_id?: string;
+    title?: string; project?: string }): Promise<IngestResp> {
+    return this.request("POST", "/ingest", body);
   }
 
   // ----------------------------------------------------------------- entries

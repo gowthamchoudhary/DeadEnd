@@ -69,9 +69,20 @@ STRESS = re.compile(r"\b(traceback|error|exception|failed|failure|panic|assertio
 
 def extract_failures(trace: dict) -> list[dict]:
     spans = trace.get("spans") or []
-    return [s for s in spans
-            if (s.get("status") or "").lower() in ("error", "failed")
-            or s.get("error") or STRESS.search(json.dumps(s))]
+    failures = []
+    for span in spans:
+        attrs = span.get("attributes") or {}
+        # DeadEnd's Neatlogs run trace deliberately contains only a small,
+        # privacy-limited set of scalar fields. Failed verification is
+        # represented as neatlogs.ok=false; nonzero agent exits as rc != 0.
+        explicit_failure = (attrs.get("neatlogs.ok") is False
+                            or (isinstance(attrs.get("neatlogs.rc"), (int, float))
+                                and attrs["neatlogs.rc"] != 0))
+        if ((span.get("status") or "").lower() in ("error", "failed")
+                or span.get("error") or explicit_failure
+                or STRESS.search(json.dumps(span))):
+            failures.append(span)
+    return failures
 
 
 def entire_checkpoint_transcript(checkpoint_id: str) -> str:

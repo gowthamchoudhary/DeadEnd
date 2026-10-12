@@ -13,6 +13,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import Contribution, Entry
 from ..scans import redact, scan_all
+from sqlalchemy import select
 from ..security import RATE, current_user
 
 S = get_settings()
@@ -71,11 +72,40 @@ def approve(body: ApproveIn, u=Depends(current_user), db: Session = Depends(get_
         c.status = "rejected"
         db.commit()
         raise HTTPException(422, f"publish blocked, flagged: {scans}")
-    _write_to_entire_global(e, c, u)
+    # Entire is the durable global archive, while the API serves retrieval
+    # from Postgres. Publish to both or the approved memory would never reach
+    # other users' runs.
+    shared = Entry(
+        scope="global", team_id=None,
+        signature_hash=e.signature_hash,
+        signature_normalized=e.signature_normalized,
+        redacted_error_text=redact(e.redacted_error_text or ""),
+        title=(c.diff.get("summary") or e.signature_normalized or "Shared fix")[:200],
+        env_fingerprint=e.env_fingerprint or {},
+        attempts_graph=e.attempts_graph or [],
+        constraints=e.constraints or [],
+        fix={"recipe": c.diff.get("recipe", ""),
+             "summary": c.diff.get("summary", ""), "verified": True},
+        verified=True, seeded=False,
+        neatlogs_trace_id=e.neatlogs_trace_id,
+        entire_checkpoint_id=e.entire_checkpoint_id,
+        created_by=u.id,
+        meta={"provenance": {"entry_id": e.id,
+                              "contribution_id": c.id}},
+    )
+    db.add(shared)
+    db.flush()
+    try:
+        _write_to_entire_global(shared, c)
+    except Exception as ex:
+        db.rollback()
+        raise HTTPException(502, f"Global archive publish failed: {str(ex)[:200]}")
     c.status, c.decided_at, c.decided_by = "published", dt.datetime.now(dt.timezone.utc), u.id
-    audit(db, u.id, "promoted_to_global", contribution_id=c.id, entry_id=e.id)
+    audit(db, u.id, "promoted_to_global", contribution_id=c.id,
+          entry_id=e.id, global_entry_id=shared.id)
     db.commit()
-    return {"published": True, "contribution_id": c.id}
+    return {"published": True, "contribution_id": c.id,
+            "entry_id": shared.id}
 
 
 def _llm_rewrite(text: str) -> dict:
@@ -104,11 +134,7 @@ def _deterministic_generalize(text: str) -> str:
     return "\n".join(keep[:6])
 
 
-def _write_to_entire_global(entry: Entry, c: Contribution, u):
+def _write_to_entire_global(entry: Entry, c: Contribution):
     """Service-account push of the approved entry to deadend-global."""
     from ..entire_global import push_entry_json
-    try:
-        push_entry_json(entry, c)
-    except Exception as ex:
-        audit(db=None, actor=u.id, action="entire_global_push_failed",
-              detail={"error": str(ex)[:200], "entry_id": entry.id})
+    push_entry_json(entry, c)

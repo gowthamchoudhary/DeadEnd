@@ -116,6 +116,39 @@ class OpenCodeAdapter(AgentAdapter):
                 res.text = (stderr or stdout or "")[-4000:]
         return res
 
+    def stream_line(self, line: str) -> list[tuple[str, str]]:
+        """Turn OpenCode's JSON event stream into short, readable updates.
+
+        The raw JSON is still retained for parse_result; this view is only
+        for the live terminal and VS Code activity panel.
+        """
+        try:
+            ev = json.loads(line)
+        except (TypeError, ValueError):
+            return [("log", line.strip()[:500])] if line.strip() else []
+        if not isinstance(ev, dict):
+            return []
+        kind = str(ev.get("type") or ev.get("event") or "").lower()
+        part = ev.get("part") if isinstance(ev.get("part"), dict) else {}
+        state = part.get("state") if isinstance(part.get("state"), dict) else {}
+        if kind in ("text", "text_delta", "message"):
+            value = part.get("text") or ev.get("text") or ev.get("delta")
+            if isinstance(value, str) and value.strip():
+                return [("assistant", value.strip()[:1200])]
+        if kind in ("tool_use", "tool", "tool_start"):
+            title = state.get("title") or part.get("name") or ev.get("name") or "tool"
+            return [("tool", str(title)[:300])]
+        if kind in ("tool_result", "tool_finish"):
+            title = state.get("title") or part.get("name") or ev.get("name") or "tool"
+            return [("tool_done", str(title)[:300])]
+        if kind in ("step_start", "step_finish"):
+            return [("status", "Model step started" if kind == "step_start"
+                     else "Model step finished")]
+        if kind == "error" or ev.get("error"):
+            detail = ev.get("error") or part.get("text") or "OpenCode reported an error"
+            return [("error", str(detail)[:500])]
+        return []
+
 
 def _render_prompt(task: str, context_pack: dict) -> str:
     dead_ends = context_pack.get("dead_ends") or []

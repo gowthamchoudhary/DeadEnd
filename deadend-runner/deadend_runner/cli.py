@@ -12,6 +12,9 @@ import platform
 import re
 import subprocess
 import sys
+import queue
+import threading
+import time
 
 import httpx
 import typer
@@ -83,6 +86,63 @@ def emit(ev: dict) -> None:
     prose. These are REAL facts from the run — callers pass None for
     anything the machine cannot know."""
     print("DEADEND_EVENT " + json.dumps(ev, default=str), flush=True)
+
+
+def _run_agent_streaming(cmd: list[str], cwd: str, adapter, timeout_s: int,
+                         attempt_no: int):
+    """Run an agent while forwarding readable output as it arrives."""
+    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                            errors="replace", bufsize=1)
+    lines: queue.Queue = queue.Queue()
+
+    def pump(name, stream):
+        try:
+            for line in iter(stream.readline, ""):
+                lines.put((name, line))
+        finally:
+            lines.put((name, None))
+            stream.close()
+
+    threads = [threading.Thread(target=pump, args=(name, pipe), daemon=True)
+               for name, pipe in (("stdout", proc.stdout), ("stderr", proc.stderr))]
+    for thread in threads:
+        thread.start()
+    output: list[str] = []
+    errors: list[str] = []
+    ended: set[str] = set()
+    deadline = time.monotonic() + timeout_s
+    timed_out = False
+    while len(ended) < 2:
+        if not timed_out and time.monotonic() >= deadline:
+            timed_out = True
+            typer.echo(f"\nAgent timed out after {timeout_s}s; stopping process.", err=True)
+            proc.kill()
+        try:
+            name, line = lines.get(timeout=0.2)
+        except queue.Empty:
+            continue
+        if line is None:
+            ended.add(name)
+            continue
+        if name == "stdout":
+            output.append(line)
+            formatter = getattr(adapter, "stream_line", None)
+            messages = formatter(line) if formatter else [("assistant", line.strip()[:1200])]
+            for kind, message in messages:
+                if not message:
+                    continue
+                emit({"phase": "agent-output", "attempt": attempt_no,
+                      "kind": kind, "text": message})
+                typer.echo(f"  {message}")
+        else:
+            errors.append(line)
+            if line.strip():
+                emit({"phase": "agent-output", "kind": "diagnostic",
+                      "text": line.strip()[:500]})
+                typer.echo(f"  [agent] {line.strip()[:500]}", err=True)
+    returncode = proc.wait()
+    return "".join(output), "".join(errors), returncode, timed_out
 
 
 def parse_test_output(stdout: str) -> dict:
@@ -235,22 +295,17 @@ def run(
                 timed_out = False
                 proc = None
                 try:
-                    proc = subprocess.run(cmd, cwd=repo_abs, capture_output=True,
-                                          text=True, timeout=wall_timeout_s)
-                except subprocess.TimeoutExpired as ex:
-                    timed_out = True
-                    out = getattr(ex, "stdout", "") or ""
-                    err = getattr(ex, "stderr", "") or ""
-                    if isinstance(out, bytes):
-                        out = out.decode(errors="replace")
-                    if isinstance(err, bytes):
-                        err = err.decode(errors="replace")
-                    result = a.parse_result(out, err, 124)
+                    stdout, stderr, returncode, timed_out = _run_agent_streaming(
+                        cmd, repo_abs, a, wall_timeout_s, attempt_no)
+                except OSError as ex:
+                    typer.echo(f"could not start agent: {ex}", err=True)
+                    stdout, stderr, returncode = "", str(ex), 127
+                if timed_out:
+                    result = a.parse_result(stdout, stderr, 124)
                     result.status = "timeout"
-                if not timed_out:
-                    result = a.parse_result(proc.stdout or "", proc.stderr or "",
-                                            proc.returncode)
-                rc = 124 if timed_out else proc.returncode
+                else:
+                    result = a.parse_result(stdout, stderr, returncode)
+                rc = 124 if timed_out else returncode
                 duration_s = (dt.datetime.now(dt.timezone.utc) - time0).total_seconds()
                 if run_id:
                     _post(f"/runs/{run_id}/events", {"phase": "attempt-done",
@@ -261,10 +316,16 @@ def run(
                       "duration_s": round(duration_s, 1)})
 
                 typer.echo(f"→ verify: {tests_cmd}")
-                t = subprocess.run([tests_cmd], cwd=repo_abs, shell=True,
+                t = subprocess.run(tests_cmd, cwd=repo_abs, shell=True,
                                    capture_output=True, text=True, timeout=300)
                 tests_ok = t.returncode == 0
                 test_counts = parse_test_output(t.stdout or "")
+                for line in (t.stdout or "").splitlines()[-30:]:
+                    emit({"phase": "agent-output", "attempt": attempt_no,
+                          "kind": "test", "text": line[:1200]})
+                for line in (t.stderr or "").splitlines()[-10:]:
+                    emit({"phase": "agent-output", "attempt": attempt_no,
+                          "kind": "diagnostic", "text": line[:500]})
                 if run_id:
                     _post(f"/runs/{run_id}/events", {"phase": "test",
                           "payload": {"attempt": attempt_no, "ok": tests_ok,

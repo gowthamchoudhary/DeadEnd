@@ -25,6 +25,7 @@ import { DeadEndStore } from "./secrets";
 import { getOrCreateOutputChannel } from "./commands";
 import { CheckItem, SetupChecker, loginHint } from "./setup";
 import { WEBVIEW_CSS, codiconLink } from "./webviewTheme";
+import { setRunOutcome } from "./results";
 
 interface RunState {
   runId?: string;
@@ -44,6 +45,9 @@ interface RunState {
                  errors: number | null; total: number | null };
   redactions?: number;
   finished?: string;
+  record?: { traceId?: string; checkpointId?: string };
+  task?: string;
+  project?: string;
 }
 
 export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -328,7 +332,7 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
     }
 
     this.state = { active: true, cancelled: false, phaseEvents: [],
-                   baseline: !useMemory };
+                   baseline: !useMemory, task, project: this.gitProjectName(dir) };
     this.post("runStarted", { useMemory, scope, project: this.gitProjectName(dir) });
     const ch = getOrCreateOutputChannel();
     ch.show(true);
@@ -376,9 +380,7 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
       this.state.proc = proc;
       let buf = "";
       proc.stdout?.on("data", (d: Buffer) => {
-        const s = d.toString();
-        ch.append(s);
-        buf += s;
+        buf += d.toString();
         // structured events: DEADEND_EVENT {json}\n
         let idx: number;
         while ((idx = buf.indexOf("\n")) >= 0) {
@@ -387,10 +389,18 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
           if (line.startsWith("DEADEND_EVENT ")) {
             try {
               const ev = JSON.parse(line.slice("DEADEND_EVENT ".length));
+              if (ev.phase === "record") {
+                this.state.record = {
+                  traceId: typeof ev.neatlogs_trace_id === "string" ? ev.neatlogs_trace_id : undefined,
+                  checkpointId: typeof ev.entire_checkpoint_id === "string" ? ev.entire_checkpoint_id : undefined,
+                };
+              }
               this.post("runnerEvent", { ev });
             } catch {
               // malformed line — ignore, never invent
             }
+          } else if (line) {
+            ch.appendLine(line);
           }
         }
       });
@@ -448,26 +458,44 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
   }
 
   // ----------------------------------------------------------- save as memory
-  /** Part 4 — Save as memory. Scope choice calls the real backend routes:
-   *  private/team entry creation is the runner+curator's job, so the panel
-   *  exposes promote-preview ONLY when Global is picked (the one flow the
-   *  extension owns end-to-end), with an explicit Approve click. */
+  /** Explicitly curate this run's Neatlogs trace into a private DeadEnd entry. */
   private async saveMemory(m: Record<string, unknown>): Promise<void> {
-    const scope = String(m.scope ?? "private");
-    const entryId = m.entryId ? String(m.entryId) : undefined;
-    const redactions = Number(m.redactions ?? 0);
-    if (scope === "global") {
-      const teamId = await this.store.getTeam();
-      if (!entryId || !teamId) {
-        void vscode.window.showWarningMessage(
-          "Global sharing needs a saved entry id (the run's record phase must have produced one).");
-        return;
-      }
-      void vscode.commands.executeCommand("deadend.publishGlobal");
+    const record = this.state.record;
+    const teamId = await this.store.getTeam();
+    if (!teamId) {
+      void vscode.window.showWarningMessage("Choose a DeadEnd team before saving a run as memory.");
       return;
     }
-    void vscode.window.showInformationMessage(
-      `Memory saved scope: ${scope}${redactions > 0 ? ` · ${redactions} redacted items` : ""}`);
+    if (!record?.traceId) {
+      void vscode.window.showWarningMessage(
+        "This run has no Neatlogs trace to curate. Check the Record step for the backend key/trace status, then save after a recorded run.");
+      return;
+    }
+    try {
+      const result = await this.api.ingest({
+        team_id: teamId,
+        trace_id: record.traceId,
+        ...(record.checkpointId ? { checkpoint_id: record.checkpointId } : {}),
+        ...(this.state.task ? { title: this.state.task.slice(0, 200) } : {}),
+        ...(this.state.project ? { project: this.state.project } : {}),
+      });
+      if (result.quarantined) {
+        void vscode.window.showWarningMessage(
+          "DeadEnd quarantined this candidate during its safety scan. Review it in the web app before using it.");
+      } else if (result.skipped) {
+        void vscode.window.showInformationMessage(`No memory created: ${result.skipped}`);
+      } else if (result.duplicate) {
+        void vscode.window.showInformationMessage("This failure is already saved in your team's private memories.");
+      } else if (result.entry_id) {
+        setRunOutcome([], result.entry_id, teamId);
+        void vscode.window.showInformationMessage(
+          "Saved as a private team memory. DeadEnd keeps it private until it has been verified and separately approved for global sharing.");
+      } else {
+        void vscode.window.showInformationMessage("DeadEnd did not create a memory for this run.");
+      }
+    } catch (ex) {
+      void vscode.window.showErrorMessage(`Could not save run as memory: ${msg(ex)}`);
+    }
   }
 
   // ---------------------------------------------------------------- dispose
@@ -670,8 +698,25 @@ ${codiconLink(codiconUri?.toString())}
       const num = ev.attempt || 1;
       const box = upsertPhase("attempt", "3 · Agent attempt " + num, num);
       box.innerHTML = '<div class="muted">agent running · cap ' +
-        fmt(ev.wall_timeout_s, "s") + "</div><ul class='steps' id='steps'></ul>";
+        fmt(ev.wall_timeout_s, "s") + "</div><div class='agent-stream' aria-live='polite'></div>";
       $("phase-attempt-" + num).dataset.t0 = String(t0);
+    } else if (ev.phase === "agent-output") {
+      const num = ev.attempt || 1;
+      const host = $("phase-attempt-" + num)?.querySelector(".agent-stream");
+      if (host && ev.text) {
+        const row = document.createElement("div");
+        row.className = "agent-line " + String(ev.kind || "status");
+        const tag = document.createElement("span");
+        tag.className = "agent-tag";
+        tag.textContent = String(ev.kind || "status").replace("_", " ");
+        const text = document.createElement("span");
+        text.className = "agent-text";
+        text.textContent = String(ev.text);
+        row.append(tag, text);
+        host.appendChild(row);
+        while (host.childElementCount > 80) host.firstElementChild?.remove();
+        host.scrollTop = host.scrollHeight;
+      }
     } else if (ev.phase === "attempt-done") {
       const num = ev.attempt || 1;
       const p = $("phase-attempt-" + num);
@@ -764,7 +809,7 @@ ${codiconLink(codiconUri?.toString())}
       '<span class="row">' +
       "<button class='secondary' data-a='accept'>Accept</button>" +
       "<button class='secondary' data-a='reject'>Reject</button>" +
-      "<button class='secondary' data-a='global'>Save as memory… (Global via promote approval)</button>" +
+      "<button class='secondary' data-a='global'>Save run as private memory candidate</button>" +
       "</span></div><div class='muted' style='margin-top:6px'>Diff and test results are in the source control view; the timeline above holds the run's real numbers.</div>";
     r.querySelectorAll("button[data-a]").forEach((b) => {
       b.onclick = () => {

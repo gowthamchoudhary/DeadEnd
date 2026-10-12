@@ -113,6 +113,19 @@ details[open] summary::before { transform: rotate(90deg); }
 .phase .head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
 .phase .head .codicon { color: var(--vscode-charts-blue, var(--vscode-textLink-foreground)); }
 .phase .muted { color: var(--vscode-descriptionForeground); font-weight: 400; }
+.agent-stream { margin-top: 8px; max-height: 270px; overflow: auto; padding: 7px;
+  border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3));
+  border-radius: 7px; background: var(--vscode-terminal-background, var(--vscode-editor-background));
+  font-family: var(--vscode-editor-font-family, monospace); font-size: .88em; }
+.agent-line { display: flex; align-items: flex-start; gap: 8px; padding: 3px 2px;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-tag { flex: 0 0 66px; text-transform: uppercase; letter-spacing: .04em;
+  font: 600 .72em var(--vscode-font-family); color: var(--vscode-descriptionForeground); }
+.agent-line.assistant .agent-tag { color: var(--vscode-charts-blue, #58a6ff); }
+.agent-line.tool .agent-tag, .agent-line.tool_done .agent-tag { color: var(--vscode-charts-yellow, #d29922); }
+.agent-line.error .agent-tag, .agent-line.diagnostic .agent-tag { color: var(--vscode-errorForeground); }
+.agent-line.assistant .agent-text { color: var(--vscode-foreground); }
+.agent-line.tool .agent-text { color: var(--vscode-charts-yellow, #d29922); }
 .chip {
   display: inline-block; padding: 2px 8px; margin: 2px 3px 2px 0;
   background: var(--vscode-editor-background);
