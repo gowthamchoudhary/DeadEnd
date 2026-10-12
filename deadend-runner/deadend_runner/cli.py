@@ -188,56 +188,82 @@ def run(
                   "constraints": len(pack["constraints"]),
                   "fixes": len(pack["fixes"])})
         try:
-            # ---- attempt ---------------------------------------------
-            cmd = a.build_command(task, repo_abs, pack, limits)
-            typer.echo(f"→ {' '.join(cmd[:3])}… (cap {wall_timeout_s}s) in {repo_abs}")
-            if run_id:
-                _post(f"/runs/{run_id}/events", {"phase": "attempt",
-                      "payload": {"attempt": 1, "cmd_head": cmd[:4]}})
-            emit({"phase": "attempt", "run_id": run_id,
-                  "cmd_head": cmd[:4], "wall_timeout_s": wall_timeout_s})
-            timed_out = False
-            proc = None
-            try:
-                proc = subprocess.run(cmd, cwd=repo_abs, capture_output=True,
-                                      text=True, timeout=wall_timeout_s)
-            except subprocess.TimeoutExpired as ex:
-                timed_out = True
-                out = getattr(ex, "stdout", "") or ""
-                err = getattr(ex, "stderr", "") or ""
-                if isinstance(out, bytes):
-                    out = out.decode(errors="replace")
-                if isinstance(err, bytes):
-                    err = err.decode(errors="replace")
-                result = a.parse_result(out, err, 124)
-                if timed_out:
+            # ---- bounded attempt / test / repair loop ------------------
+            max_attempts = 2
+            tests_ok = False
+            test_counts = {"passed": None, "failed": None,
+                           "errors": None, "total": None}
+            for attempt_no in range(1, max_attempts + 1):
+                attempt_task = task if attempt_no == 1 else (
+                    task + "\n\nDeadEnd iteration " + str(attempt_no) +
+                    ": the previous changes did not pass verification. "
+                    "Inspect the failed test output below, fix the issue, and "
+                    "preserve the original task intent.\n\n" +
+                    (t.stdout or "")[-3000:])
+                if attempt_no > 1:
+                    if run_id:
+                        _post(f"/runs/{run_id}/events", {"phase": "iteration",
+                              "payload": {"attempt": attempt_no,
+                                          "reason": "verification failed"}})
+                    emit({"phase": "iteration", "run_id": run_id,
+                          "attempt": attempt_no,
+                          "reason": "verification failed; asking agent to repair"})
+                cmd = a.build_command(attempt_task, repo_abs, pack, limits)
+                typer.echo(f"→ attempt {attempt_no}/{max_attempts}: {' '.join(cmd[:3])}…")
+                if run_id:
+                    _post(f"/runs/{run_id}/events", {"phase": "attempt",
+                          "payload": {"attempt": attempt_no, "cmd_head": cmd[:4]}})
+                emit({"phase": "attempt", "run_id": run_id,
+                      "attempt": attempt_no, "cmd_head": cmd[:4],
+                      "wall_timeout_s": wall_timeout_s})
+                timed_out = False
+                proc = None
+                try:
+                    proc = subprocess.run(cmd, cwd=repo_abs, capture_output=True,
+                                          text=True, timeout=wall_timeout_s)
+                except subprocess.TimeoutExpired as ex:
+                    timed_out = True
+                    out = getattr(ex, "stdout", "") or ""
+                    err = getattr(ex, "stderr", "") or ""
+                    if isinstance(out, bytes):
+                        out = out.decode(errors="replace")
+                    if isinstance(err, bytes):
+                        err = err.decode(errors="replace")
+                    result = a.parse_result(out, err, 124)
                     result.status = "timeout"
-            if not timed_out:
-                result = a.parse_result(proc.stdout or "", proc.stderr or "",
-                                        proc.returncode)
-            duration_s = (dt.datetime.now(dt.timezone.utc) - time0).total_seconds()
-            if run_id:
-                _post(f"/runs/{run_id}/events",
-                      {"phase": "attempt-done",
-                       "payload": {"rc": 124 if timed_out else proc.returncode,
-                                   "tail": result.text[-1000:]}})
-            emit({"phase": "attempt-done", "run_id": run_id,
-                  "rc": 124 if timed_out else proc.returncode,
-                  "duration_s": round(duration_s, 1)})
+                if not timed_out:
+                    result = a.parse_result(proc.stdout or "", proc.stderr or "",
+                                            proc.returncode)
+                rc = 124 if timed_out else proc.returncode
+                duration_s = (dt.datetime.now(dt.timezone.utc) - time0).total_seconds()
+                if run_id:
+                    _post(f"/runs/{run_id}/events", {"phase": "attempt-done",
+                          "payload": {"attempt": attempt_no, "rc": rc,
+                                      "duration_s": round(duration_s, 1)}})
+                emit({"phase": "attempt-done", "run_id": run_id,
+                      "attempt": attempt_no, "rc": rc,
+                      "duration_s": round(duration_s, 1)})
 
-            # ---- test -------------------------------------------------
-            typer.echo(f"→ {tests_cmd}")
-            t = subprocess.run([tests_cmd], cwd=repo_abs, shell=True,
-                               capture_output=True, text=True, timeout=300)
-            tests_ok = t.returncode == 0
-            test_counts = parse_test_output(t.stdout or "")
-            if run_id:
-                _post(f"/runs/{run_id}/events",
-                      {"phase": "test",
-                       "payload": {"ok": tests_ok,
-                                   "tail": (t.stdout or "")[-1000:]}})
-            emit({"phase": "test", "run_id": run_id, "ok": tests_ok,
-                  **test_counts})
+                typer.echo(f"→ verify: {tests_cmd}")
+                t = subprocess.run([tests_cmd], cwd=repo_abs, shell=True,
+                                   capture_output=True, text=True, timeout=300)
+                tests_ok = t.returncode == 0
+                test_counts = parse_test_output(t.stdout or "")
+                if run_id:
+                    _post(f"/runs/{run_id}/events", {"phase": "test",
+                          "payload": {"attempt": attempt_no, "ok": tests_ok,
+                                      **test_counts}})
+                emit({"phase": "test", "run_id": run_id,
+                      "attempt": attempt_no, "ok": tests_ok, **test_counts})
+                if run_id:
+                    _post(f"/runs/{run_id}/events", {"phase": "verify",
+                          "payload": {"attempt": attempt_no, "ok": tests_ok,
+                                      "source": "configured test command"}})
+                emit({"phase": "verify", "run_id": run_id,
+                      "attempt": attempt_no, "ok": tests_ok,
+                      "source": "configured test command"})
+                if tests_ok:
+                    break
             # ---- verify + record -------------------------------------
             status = "success" if tests_ok else "failure"
             if run_id:
@@ -254,15 +280,19 @@ def run(
             # neatlogs: trace id is only known when the WORKFLOW span is real
             # (neatlogs installed + key configured); otherwise null reasons.
             nl_trace_id, nl_url = trace.neatlogs_trace_id()
-            _post(f"/runs/{run_id}/events", {"phase": "record",
+            saved = _post(f"/runs/{run_id}/events", {"phase": "record",
                   "payload": {"neatlogs_trace_id": nl_trace_id,
                               "neatlogs_url": nl_url,
                               "entire_checkpoint_id": trace.entire_checkpoint_id,
                               "neatlogs": bool(nl_trace_id),
                               "entire": bool(trace.entire_checkpoint_id),
                               "why_not": trace.why_not()}})
+            nl_trace_id = saved.get("neatlogs_trace_id") or nl_trace_id
+            nl_url = saved.get("neatlogs_url") or nl_url
             emit({"phase": "record", "run_id": run_id,
                   "neatlogs_trace_id": nl_trace_id, "neatlogs_url": nl_url,
+                  "neatlogs_configured": saved.get("neatlogs_configured"),
+                  "neatlogs_error": saved.get("neatlogs_error"),
                   "entire_checkpoint_id": trace.entire_checkpoint_id,
                   "why_not": trace.why_not()})
             emit({"phase": "done", "run_id": run_id, "status": status,
