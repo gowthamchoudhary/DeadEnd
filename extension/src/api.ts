@@ -176,11 +176,15 @@ export class DeadEndApi {
   /** Token is delivered after approval. The backend declares device_code as
    * a query parameter on this POST endpoint. */
   deviceResume(deviceCode: string): Promise<{ token: string; team_id?: string; reissued?: boolean }> {
+<<<<<<< HEAD
     return this.request(
       "POST",
       `/auth/device/resume?device_code=${encodeURIComponent(deviceCode)}`,
       {},
     );
+=======
+    return this.request("POST", `/auth/device/resume?device_code=${encodeURIComponent(deviceCode)}`, {});
+>>>>>>> c1f75f856167c2a541f75e0906ea5dae392a4dd0
   }
 
   me(): Promise<MeResp> {

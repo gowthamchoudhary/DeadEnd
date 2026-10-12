@@ -16,15 +16,16 @@ DEST="$DOWNLOADS/$VSI_NAME"
 DOWNLOAD_TS="$REPO_ROOT/web/components/Download.tsx"
 
 echo "› extension version: ${VERSION}"
-echo "› packaging ${VSI_NAME}…"
-(cd "$REPO_ROOT/extension" && npx vsce package -o "dist/${VSI_NAME}")
+echo "› packaging ${VSI_NAME}…"(cd "$REPO_ROOT/extension" && npx vsce package -o "dist/${VSI_NAME}")
 
 [ -f "$REPO_ROOT/extension/dist/${VSI_NAME}" ] || {
-  echo "expected extension/dist/${VSI_NAME} not found" >&2; exit 1; }
+  echo "expected extension/dist/${VSI_NAME} not found" >&2; exit 1;
+}
 
-# drop stale copies of older versions so only the current file is served
+# drop stale copies from BOTH the served downloads folder AND the extension build folder
 mkdir -p "$DOWNLOADS"
 find "$DOWNLOADS" -maxdepth 1 -name 'deadend-*.vsix' ! -name "$VSI_NAME" -delete
+find "$REPO_ROOT/extension/dist" -maxdepth 1 -name 'deadend-*.vsix' ! -name "$VSI_NAME" -delete
 
 cp "$REPO_ROOT/extension/dist/${VSI_NAME}" "$DEST"
 
