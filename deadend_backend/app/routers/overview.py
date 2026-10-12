@@ -40,8 +40,9 @@ def overview(u: User = Depends(current_user), db: Session = Depends(get_db)):
     out = {"teams": [{"team_id": m.team_id, "role": m.role} for m in memberships],
            "entries": None, "runs": None}
     out["tokens"] = db.execute(
-        select(ApiToken).where(ApiToken.user_id == u.id,
-                               ApiToken.revoked_at.is_(None))).scalar_one_or_none() is not None
+        select(ApiToken.id).where(ApiToken.user_id == u.id,
+                                  ApiToken.revoked_at.is_(None)).limit(1)
+    ).first() is not None
     if not team_ids:
         return out
 
