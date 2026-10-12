@@ -1,7 +1,7 @@
 [project]
 name = "deadend-runner"
-version = "0.2.1"
-description = "DeadEnd local runner: agent-agnostic adapters (claude-code, codex, opencode, pi, antigravity, copilot-cli), MCP server, run recording"
+version = "0.2.2"
+description = "DeadEnd memory and verification agent: Entire session search, coding-agent adapters, MCP, and run recording"
 requires-python = ">=3.10"
 dependencies = ["httpx>=0.27", "typer>=0.12"]
 
