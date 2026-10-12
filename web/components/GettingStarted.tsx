@@ -166,22 +166,16 @@ export function GettingStartedDoc() {
         </p>
       </Step>
 
-      <Step n={7} title="Set NEATLOGS_API_KEY">
+      <Step n={7} title="Neatlogs tracing">
         <p>
-          neatlogs traces every run so DeadEnd can locate the failing step and
-          its cause. Get a project API key from your neatlogs project settings,
-          then export it in the shell (or environment) you run agents from:
-        </p>
-        <Copyable text="export NEATLOGS_API_KEY=<your neatlogs project key>" />
-        <p>
-          Optional, for fuller per-agent capture (codex and opencode plugins
-          likewise — see SUPPORT.md):
-        </p>
-        <Copyable text="pip install neatlogs neatlogs-claude-code" />
-        <p>
-          The extension&apos;s checklist marks neatlogs recording once a run has
-          actually recorded a trace id; a key alone shows as &ldquo;set, no run
-          recorded yet&rdquo;.
+          DeadEnd records run traces with the project owner’s server-side
+          Neatlogs key. You do not need a Neatlogs account or key on your machine.
+          If recording is unavailable, ask the DeadEnd project owner to configure
+          DEADEND_NEATLOGS_API_KEY and DEADEND_NEATLOGS_PROJECT on the backend.
+        </p>        <p>
+          The extension checklist reports success after the backend records a
+          trace. OpenCode and other agent providers keep their own local sign-in;
+          DeadEnd does not use those provider keys for Neatlogs.
         </p>
       </Step>
 
