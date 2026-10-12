@@ -48,9 +48,11 @@ export class AuthController implements vscode.Disposable {
     }
     try {
       this.me = await this.api.me();
-      const teamLabel = team ? `${this.me.teams.find((t) => t.team_id === team)?.role ?? ""}`.trim() : "no team";
+      const teamLabel =
+        team ? `${this.me.teams.find((t) => t.team_id === team)?.role ?? ""}`.trim() : "no team";
       this.statusBar.text = `$(check) DeadEnd: ${this.me.login}${team ? ` · team ${teamLabel}` : ""}`;
-      this.statusBar.tooltip = `Signed in as ${this.me.login}. Teams: ${this.me.teams.map((t) => t.team_id).join(", ") || "none"}`;
+      this.statusBar.tooltip =
+        `Signed in as ${this.me.login}. Teams: ${this.me.teams.map((t) => t.team_id).join(", ") || "none"}`;
     } catch {
       this.statusBar.text = "$(warning) DeadEnd: token invalid";
       this.statusBar.tooltip = "DeadEnd token rejected by the backend — sign in again.";
@@ -89,7 +91,9 @@ export class AuthController implements vscode.Disposable {
         }
       }
     }
-    this.log(`backend did not respond within ${(timeoutMs / 1000).toFixed(0)}s — first request may take 50 s+ on a cold Render instance; the sign-in step below will still try, but the device code may not yet exist on the server`);
+    this.log(
+      `backend did not respond within ${(timeoutMs / 1000).toFixed(0)}s — first request may take 50 s+ on a cold Render instance; the sign-in step below will still try, but the device code may not yet exist on the server`,
+    );
     return false;
   }
 
@@ -139,11 +143,9 @@ export class AuthController implements vscode.Disposable {
     const expiresMs = (start.expires_in ?? 900) * 1000;
     const deadline = Date.now() + expiresMs;
     const interval = (start.interval ?? 3) * 1000;
-    this.log(
-      `waiting for approval until ${new Date(deadline).toISOString()} (${
-        expiresMs / 1000
-      }s window)`,
-    );
+    this.log(`waiting for approval until ${new Date(deadline).toISOString()} (${
+      expiresMs / 1000
+    }s window)`);
 
     await vscode.window.withProgress(
       {
@@ -249,7 +251,8 @@ export class AuthController implements vscode.Disposable {
   ): Promise<{ token: string; team_id?: string } | null> {
     for (let i = 0; i < retries; i++) {
       try {
-        const r = await this.api.deviceResume(deviceCode);            this.log("token collected");
+        const r = await this.api.deviceResume(deviceCode);
+        this.log(`token collected${r.reissued ? " (reissued)" : ""}`);
         return r;
       } catch (ex) {
         this.log(`/device/resume attempt ${i + 1}/${retries}: ${msg(ex)}`);
