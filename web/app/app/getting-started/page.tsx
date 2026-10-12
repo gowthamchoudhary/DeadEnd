@@ -100,14 +100,14 @@ export default function GettingStartedAppPage() {
       id: "entire",
       status: st?.entire_recorded === true ? "done"
         : st?.entire_recorded === false ? "warn" : "pending",
-      title: "Entire enabled in your repo",
+      title: "Entire session memory connected",
       detail: st?.entire_recorded === true
-        ? "A recorded run carries an Entire checkpoint id."
+        ? "The run is linked to an Entire checkpoint and its captured session."
         : st?.entire_recorded === false
-        ? "Runs recorded but no checkpoint id — run `entire enable` in the repo, then run once more."
-        : "No runs yet. After your first run, enable Entire in the repo to start checkpoints.",
+        ? "Runs are recorded but no checkpoint id appeared. Sign in to Entire, enable the agent search skill and capture hook, then run again."
+        : "Sign in to Entire, then enable this agent's capture hook and search skill before running a task.",
       cmd: st?.entire_recorded === true ? undefined
-        : "entire enable --agent claude-code",
+        : "entire enable --agent claude-code --search-skill",
       href: "/docs/getting-started#step-8",
       linkLabel: "Guide",
     },
