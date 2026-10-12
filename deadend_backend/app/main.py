@@ -39,6 +39,13 @@ def healthz():
     return {"ok": True, "env": S.env}
 
 
+@app.get("/health")
+def health():
+    # The VS Code extension uses this endpoint to confirm the backend is up
+    # before starting the device-code sign-in flow.
+    return {"status": "ok"}
+
+
 from .routers.verify import router as verify_router  # noqa: E402
 
 for r in (auth.router, teams.router, retrieval.router, ingest.router,
