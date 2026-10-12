@@ -26,15 +26,21 @@ def run(cmd: list[str], cwd: str | None = None) -> tuple[int, str]:
 
 
 def setup_agent(agent: str, repo: str, entire_bin: str | None = None) -> dict:
-    """Run `entire enable --yes --agent <name>` in the repo; report status."""
+    """Enable Entire capture and its search skill for this repository/agent."""
     agent = _canonical(agent)
     if entire_bin is None:
         entire_bin = shutil.which("entire") or "entire"
     out: dict = {"agent": agent, "entire": "not_installed"}
     if shutil.which(entire_bin) is None:
         return out
-    rc, text = run([entire_bin, "enable", "--yes", "--agent", agent], cwd=repo)
+    rc, text = run([entire_bin, "enable", "--yes", "--agent", agent,
+                    "--search-skill"], cwd=repo)
+    if rc != 0 and "unknown flag" in text.lower():
+        rc, text = run([entire_bin, "enable", "--yes", "--agent", agent], cwd=repo)
+        if rc == 0:
+            text += "\nEntire CLI does not support --search-skill; session capture is enabled."
     out["entire"] = "enabled" if rc == 0 else f"failed: {text.strip()[-200:]}"
+    out["entire_search"] = "enabled" if rc == 0 and "does not support --search-skill" not in text else "unavailable"
     out["entire_files"] = _PROBE_FILES.get(agent, [])
     return out
 
