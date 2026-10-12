@@ -14,6 +14,8 @@
  * Nothing is inferred or fabricated; unknown stays unknown.
  */
 import * as cp from "child_process";
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import { DeadEndApi, SetupStatusResp } from "./api";
 import { AgentInfo, detectAgents } from "./agents";
@@ -104,11 +106,11 @@ export class SetupChecker {
       out.push({ id: "entire", label: "Entire enabled in this repo", status: "warn",
         detail: "Run \u0060entire enable --agent <name>\u0060", actionLabel: "Enable Entire" });
     } else if (!recheckBackend && this.setupStatus) {
-      this.appendCaptureRows(out, this.setupStatus);
+      this.appendCaptureRows(out, this.setupStatus, dir);
     } else {
       try {
         this.setupStatus = await this.api.setupStatus();
-        this.appendCaptureRows(out, this.setupStatus);
+        this.appendCaptureRows(out, this.setupStatus, dir);
       } catch (ex) {
         const s = String(ex);
         out.push({ id: "neatlogs", label: "neatlogs recording", status: "warn",
@@ -120,42 +122,49 @@ export class SetupChecker {
     return out;
   }
 
-  private appendCaptureRows(out: CheckItem[], st: SetupStatusResp): void {
-    // neatlogs: the real question is "did any run already record a trace id".
-    // For THIS machine we also check env / install directly (cheap):
-    const nlEnv = hasNeatlogsEnv();
-    if (st.neatlogs_recorded === true || nlEnv) {
+  private appendCaptureRows(out: CheckItem[], st: SetupStatusResp, dir?: string): void {
+    if (st.neatlogs_recorded === true) {
       out.push({ id: "neatlogs", label: "neatlogs recording", status: "ok",
-        detail: nlEnv ? "NEATLOGS_API_KEY set on this machine"
-                      : "Past runs recorded trace ids" });
+        detail: "Central DeadEnd project is recording run traces" });
     } else if (st.neatlogs_recorded === false) {
-      out.push({ id: "neatlogs", label: "neatlogs recording", status: "warn",
-        detail: "Runs recorded but no trace id captured. Set NEATLOGS_API_KEY " +
-                "or run \u0060pip install neatlogs neatlogs-claude-code\u0060 (see SUPPORT.md)" });
+      out.push({ id: "neatlogs", label: "neatlogs recording",
+        status: st.neatlogs_configured ? "warn" : "bad",
+        detail: st.neatlogs_configured
+          ? "Server key is configured; no trace has been recorded yet"
+          : "Add the owner key to DEADEND_NEATLOGS_API_KEY on the DeadEnd backend" });
     } else {
-      out.push({ id: "neatlogs", label: "neatlogs recording", status: "warn",
-        detail: nlEnv ? "Key set, no run recorded yet" :
-          "No runs recorded yet. Get a project key from neatlogs, then set NEATLOGS_API_KEY.",
-        actionLabel: undefined });
+      out.push({ id: "neatlogs", label: "neatlogs recording",
+        status: st.neatlogs_configured ? "ok" : "bad",
+        detail: st.neatlogs_configured
+          ? "Central project key is configured; first run will create a trace"
+          : "Owner: configure DEADEND_NEATLOGS_API_KEY on the DeadEnd backend" });
     }
-    if (st.entire_recorded === true) {
+    const agent = this.agents.find((a) => a.detected)?.agent;
+    const entireFile = agent ? ENTIRE_FILES[agent] : undefined;
+    const entireEnabled = !!(dir && entireFile && fs.existsSync(path.join(dir, entireFile)));
+    if (entireEnabled || st.entire_recorded === true) {
       out.push({ id: "entire", label: "Entire enabled in this repo", status: "ok",
-        detail: "Past runs recorded checkpoints" });
+        detail: entireEnabled ? `Entire hook installed for ${agent}` : "Past runs recorded checkpoints" });
     } else if (st.entire_recorded === false) {
       out.push({ id: "entire", label: "Entire enabled in this repo", status: "warn",
         detail: "Runs recorded but no checkpoint id captured \u2014 run \u0060entire enable --agent <name>\u0060 here",
         actionLabel: "Enable Entire" });
     } else {
       out.push({ id: "entire", label: "Entire enabled in this repo", status: "warn",
-        detail: "No runs yet. After your first run, \u0060entire enable --agent <name>\u0060 to start checkpoints.",
+        detail: "Enable Entire now to install this repo’s checkpoint hook before your first run.",
         actionLabel: "Enable Entire" });
     }
   }
 }
 
-function hasNeatlogsEnv(): boolean {
-  return !!(process.env.NEATLOGS_API_KEY || process.env.NEATLOGS_KEY);
-}
+const ENTIRE_FILES: Record<string, string> = {
+  "claude-code": ".claude/settings.json",
+  codex: ".codex/hooks.json",
+  opencode: ".opencode/plugins/entire.ts",
+  pi: ".pi/extensions/entire/index.ts",
+  antigravity: ".agents/hooks.json",
+  "copilot-cli": ".github/hooks/entire.json",
+};
 
 /** Runs `deadend-runner agents` (one call, re-uses detectAgents logic). */
 export function quickRunnerProbe(cwd?: string): Promise<boolean> {
