@@ -2,17 +2,15 @@
 
 # DeadEnd
 
-### The memory and verification agent around your coding agents.
+### The memory and verification agent for coding teams.
 
-DeadEnd gives coding agents access to a team's past failures and fixes, then
-shows what happened when they use that context. Keep using OpenCode, Claude
-Code, Codex, Pi, Antigravity, or Copilot CLI. DeadEnd adds the memory loop
-around them.
+DeadEnd is an agent that retrieves a team's past debugging work, directs the
+coding agent you choose, and verifies the result. It works with OpenCode,
+Claude Code, Codex, Pi, Antigravity, or Copilot CLI.
 
 **Retrieve before the run. Inject useful context. Test the result. Keep a trace.**
 
 [Demo guide](deadend-demo-workspace/demo_tasks.md) ·
-[Video script](DEMO_VIDEO_SCRIPT.md) ·
 [Supported agents](SUPPORT.md) ·
 [Backend setup](deadend_backend/README.md)
 
@@ -26,22 +24,25 @@ Coding agents are good at making changes. Teams still lose time when each run
 starts without the lessons from previous debugging: which approach failed,
 what constraint mattered, and which fix passed verification.
 
-DeadEnd is an **agent around agents**. It retrieves relevant team memories
-before a task, runs the coding CLI you choose on your machine, checks the
-result, and records run activity. A private memory stays with its team. A
+Entire preserves agent sessions and checkpoints in the repository. DeadEnd is
+a **team-memory and verification agent** that searches that work history
+alongside curated team fixes, runs your chosen coding CLI, checks the result,
+and records run activity. Private curated memories stay with their team; a
 verified fix can be reviewed and explicitly approved for global sharing.
 
 ```mermaid
 flowchart LR
     Dev[Developer in VS Code] --> Ext[DeadEnd extension]
     Ext --> Runner[deadend-runner on developer machine]
-    Runner -->|retrieve context| API[DeadEnd FastAPI]
+    Runner -->|retrieve curated fixes| API[DeadEnd service]
     API <--> DB[(Postgres)]
+    Runner -->|Entire hybrid session search| Entire[Entire session and checkpoint store]
+    Entire -->|checkpoint transcripts| Runner
     Runner -->|local CLI and credentials| Agent[Chosen coding agent]
     Agent -->|workspace edits| Repo[Project repository]
     Runner -->|tests, events, summary| API
     API -->|privacy-limited run trace| NL[Neatlogs]
-    Repo -. optional repo hooks .-> Entire[Entire checkpoints]
+    Repo -. agent hooks capture prompts, tools, edits .-> Entire
     API -->|approved global entry| Global[Configured Entire-backed archive]
     DB --> Econ[Usage and reuse metrics]
     Econ -->|CSV / spreadsheet export| CFO[cfo.ai planning workflow]
@@ -56,15 +57,18 @@ sequenceDiagram
     participant Runner as Local runner
     participant Agent as Your coding agent
     participant API as DeadEnd backend
-    participant Store as Team memory store
+    participant Store as DeadEnd curated memory index
+    participant Entire as Entire session history
 
     You->>UI: Choose agent, task, memory scope
     UI->>Runner: Start local run
     Runner->>API: Retrieve matching memories
+    Runner->>Entire: Hybrid search captured sessions/checkpoints
+    Entire-->>Runner: Ranked hits and transcript excerpts
     API->>Store: Match signature and relevant terms
     Store-->>API: Private team + allowed global entries
     API-->>Runner: Ranked, budgeted context pack
-    Runner->>Agent: Task + injected failures, constraints, fixes
+    Runner->>Agent: Task + Entire history + failures, constraints, fixes
     Agent->>Runner: Stream response and workspace changes
     Runner->>Runner: Run configured tests; retry once if they fail
     Runner->>API: Record retrieve, inject, attempt, test, verify, result
@@ -73,9 +77,11 @@ sequenceDiagram
 
 1. **Choose the agent and scope.** The extension detects installed agent
    CLIs. Your provider login stays with that CLI on your machine.
-2. **Retrieve relevant context.** DeadEnd searches exact signatures and
-   lexical overlap, applies the environment and team-scope filters, and caps
-   the context pack to the configured token budget.
+2. **Retrieve relevant context.** The local runner searches Entire's
+   authenticated session/checkpoint index for this repository, then asks the
+   DeadEnd service for curated team fixes. Both sources fit within one context
+   budget. Entire credentials and raw transcripts stay on the developer's
+   machine.
 3. **Inject before execution.** The runner adds a managed context block to
    the agent's instruction file and passes the memory pack with the task.
 4. **Watch the run.** The extension streams retrieval, injection, agent,
@@ -101,16 +107,17 @@ sequenceDiagram
 | Run history | Inspect status, project, agent, duration, tokens, memory context, and recorded events in the web dashboard. |
 | Economics | Separate measured run/reuse data from user-entered model prices and infrastructure assumptions. |
 
-## Integrations
+## How DeadEnd uses its three integrations
 
-These systems have distinct jobs. DeadEnd coordinates them; they do not
-replace the coding agent.
+DeadEnd is the memory and verification agent coordinating these tools. Each integration has a concrete job in a run:
 
-| Integration | Role in DeadEnd | What to say accurately |
-| --- | --- | --- |
-| **Neatlogs** | The backend uses the owner's server-side key to emit a compact run trace from selected phases such as retrieve, inject, attempt, test, and verify. Curator and promotion workflows can also be traced. | The run trace is privacy-limited: it excludes source files, terminal output, agent credentials, and the task text. A trace is created at the record phase, so an in-progress run has no final trace yet. |
-| **Entire** | Agent-specific repository hooks can capture coding-session checkpoints where enabled. Approved global memories can also be archived in the configured Entire-backed repository. | Checkpoint capture depends on the agent hook, repository setup, and auth. The runner may report no checkpoint ID for a run; don't claim a particular run was checkpointed unless its record shows the ID. |
-| **cfo.ai** | The Economics dashboard turns recorded runs and reuse events into measured usage metrics, then exports CSV or spreadsheet data for a business-plan workflow. | Model prices, hosting costs, cash, and growth are explicit assumptions. A published cfo.ai plan URL can be linked in the dashboard; this is an export/link workflow, not an automatic cfo.ai API write. |
+| Partner | What DeadEnd uses | What the user sees | Boundary to know |
+| --- | --- | --- | --- |
+| **Entire** | Agent hooks capture sessions and checkpoints in the repository. Before a run, the local runner searches the current repository's Entire history and retrieves relevant transcript excerpts for the selected coding agent. | Earlier agent work can be found and injected beside curated DeadEnd memories; when available, the run links to its new checkpoint. | Search and transcript export run locally under the developer's Entire login. Raw transcripts are not uploaded to DeadEnd. Structured team memories remain in DeadEnd's database; they are not all stored in Entire. |
+| **Neatlogs** | The backend records a compact trace of selected run phases, including retrieval, injection, attempts, tests, and verification. Curator and promotion actions can also be traced. | A trace provides an inspectable event record of what happened during a run. | The owner's Neatlogs key stays on the backend. Traces omit raw task text, source files, terminal output, and provider credentials. A final trace is created during recording, so it may not exist while a run is still active. |
+| **cfo.ai** | DeadEnd Economics summarizes recorded run and real memory-reuse data and supports CSV/spreadsheet export. A published cfo.ai plan can be linked in the dashboard. | Teams can take measured usage and reuse figures into business planning, then apply their own pricing and cost assumptions. | This is an export and plan-link workflow, not an automatic cfo.ai API integration. Forecast prices and infrastructure costs are assumptions, not measured spend. |
+
+Together: **Entire supplies searchable work history; DeadEnd retrieves, directs, and verifies; Neatlogs records the run; cfo.ai receives planning inputs from measured usage and reuse.**
 
 ## Supported coding agents
 
@@ -130,6 +137,7 @@ MCP configuration, capture support, and known caveats.
 
 ## Privacy and trust boundaries
 
+- Entire's CLI search and transcript retrieval run locally under the user's Entire login; raw transcripts are injected locally and are not sent to DeadEnd's backend.
 - The agent process and project edits run locally.
 - The runner sends the task to the DeadEnd backend for run history and sends
   retrieval, phase, test, and final-summary data needed by the product.
@@ -152,15 +160,17 @@ Its API is intentionally small so a demo task can touch several real seams:
 the FastAPI routes, the compatibility wrapper, ticket storage, and tests.
 
 1. Deploy the backend version containing the ten demo fixtures.
-2. Install the VS Code extension and `deadend-runner`; sign in and choose the
-   demo team.
-3. Open `deadend-demo-workspace/` and run **DeadEnd: Load demo memories into
+2. Install the VS Code extension and current `deadend-runner`; sign in to
+   DeadEnd, sign in to Entire with `entire login`, and choose the demo team.
+3. In the demo repository, enable the chosen agent's Entire capture hooks and
+   search skill, for example: `entire enable --yes --agent opencode --search-skill`.
+4. Open `deadend-demo-workspace/` and run **DeadEnd: Load demo memories into
    team**. It is safe to repeat; existing entries are skipped.
-4. Choose OpenCode, select private team context, and preview the task in
+5. Choose OpenCode, select private team context, and preview the task in
    [`demo_tasks.md`](deadend-demo-workspace/demo_tasks.md).
-5. Record the retrieve count, injected item count, test result, repair attempt,
-   and final run status. Show a success only if the run actually completed
-   successfully.
+6. Record separate Entire-session and curated-memory match counts, injected
+   item count, test result, repair attempt, and final run status. Show a
+   success only if the run actually completed successfully.
 
 The memory pack contains synthetic, unverified fixtures. A real run can still
 fail or time out; DeadEnd should show that result plainly rather than turn it
@@ -213,7 +223,6 @@ the FastAPI service.
 | [`web/`](web/) | Next.js landing page and team dashboard: memories, runs, agents, settings, economics |
 | [`deadend-demo-workspace/`](deadend-demo-workspace/) | Ticketdesk target app, synthetic demo task, reproducible tests |
 | [`SUPPORT.md`](SUPPORT.md) | Agent and integration support matrix |
-| [`DEMO_VIDEO_SCRIPT.md`](DEMO_VIDEO_SCRIPT.md) | Narration and edit cues for the available demo clips |
 
 ## Verify changes
 
