@@ -86,8 +86,13 @@ export class SetupChecker {
       out.push({ id: "agents", label: "Agents detected", status: "warn",
         detail: "Unknown \u2014 runner missing" });
     } else {
-      out.push({ id: "runner", label: "Runner installed", status: "ok",
-        detail: agents.length + " agent capability rows returned" });
+      const runnerCurrent = agents.every((a) => a.entire_session_search === true);
+      out.push({ id: "runner", label: runnerCurrent ? "Runner installed" : "Runner update needed",
+        status: runnerCurrent ? "ok" : "warn",
+        detail: runnerCurrent
+          ? `v${agents[0].runner_version || "current"} · Entire session retrieval ready`
+          : "Update deadend-runner to search Entire sessions before each run",
+        ...(!runnerCurrent ? { actionLabel: "Update runner" } : {}) });
       const detected = agents.filter((a) => a.detected).map((a) => a.agent);
       if (detected.length) {
         out.push({ id: "agents", label: "Agents detected", status: "ok",
@@ -103,8 +108,8 @@ export class SetupChecker {
     if (!token || !me) {
       out.push({ id: "neatlogs", label: "neatlogs recording", status: "warn",
         detail: "Sign in to check" });
-      out.push({ id: "entire", label: "Entire enabled in this repo", status: "warn",
-        detail: "Run \u0060entire enable --agent <name>\u0060", actionLabel: "Enable Entire" });
+      out.push({ id: "entire", label: "Entire memory enabled in this repo", status: "warn",
+        detail: "Enable Entire session capture and search for your agent.", actionLabel: "Enable Entire" });
     } else if (!recheckBackend && this.setupStatus) {
       this.appendCaptureRows(out, this.setupStatus, dir);
     } else {
@@ -115,7 +120,7 @@ export class SetupChecker {
         const s = String(ex);
         out.push({ id: "neatlogs", label: "neatlogs recording", status: "warn",
           detail: "Unknown \u2014 " + s.slice(0, 80) });
-        out.push({ id: "entire", label: "Entire enabled in this repo", status: "warn",
+        out.push({ id: "entire", label: "Entire memory enabled in this repo", status: "warn",
           detail: "Unknown \u2014 " + s.slice(0, 80) });
       }
     }
@@ -143,15 +148,15 @@ export class SetupChecker {
     const entireFile = agent ? ENTIRE_FILES[agent] : undefined;
     const entireEnabled = !!(dir && entireFile && fs.existsSync(path.join(dir, entireFile)));
     if (entireEnabled || st.entire_recorded === true) {
-      out.push({ id: "entire", label: "Entire enabled in this repo", status: "ok",
-        detail: entireEnabled ? `Entire hook installed for ${agent}` : "Past runs recorded checkpoints" });
+      out.push({ id: "entire", label: "Entire memory enabled in this repo", status: "ok",
+        detail: entireEnabled ? `Capture hook installed for ${agent}; sign in with entire login to retrieve sessions.` : "Past runs recorded checkpoints" });
     } else if (st.entire_recorded === false) {
-      out.push({ id: "entire", label: "Entire enabled in this repo", status: "warn",
-        detail: "Runs recorded but no checkpoint id captured \u2014 run \u0060entire enable --agent <name>\u0060 here",
+      out.push({ id: "entire", label: "Entire memory enabled in this repo", status: "warn",
+        detail: "Runs recorded but no checkpoint id captured; enable Entire capture and search here.",
         actionLabel: "Enable Entire" });
     } else {
-      out.push({ id: "entire", label: "Entire enabled in this repo", status: "warn",
-        detail: "Enable Entire now to install this repo’s checkpoint hook before your first run.",
+      out.push({ id: "entire", label: "Entire memory enabled in this repo", status: "warn",
+        detail: "Enable Entire capture and search before your first run.",
         actionLabel: "Enable Entire" });
     }
   }
