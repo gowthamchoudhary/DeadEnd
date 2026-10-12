@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # sponsors
     neatlogs_api_key: str = ""       # backend Curator/Verifier tracing
+    neatlogs_project: str = "DeadEnd"
     neatlogs_mcp_url: str = "https://ingest.neatlogs.com/mcp"
     entire_private_remote: str = ""  # entire://aws-us-east-2.entire.io/et/deadend/deadend-private
     entire_global_remote: str = ""   # .../deadend-global
