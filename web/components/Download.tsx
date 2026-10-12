@@ -5,7 +5,7 @@
  * scripts/copy-vsix.sh at package time (see inline constants). The
  * self-contained sources of truth are the copies in /downloads. */
 export const VSIX_RELEASE_URL = "/downloads/deadend-0.2.0.vsix";
-export const VSIX_SHA256 = "c6482fedacdef6ecaf72b6c390792a90ca2e5c6fb91f8532a1f2eb9bb259fe6f";
+export const VSIX_SHA256 = "93a13af29502d2a8d6abf0b53c6c8cb4949f5cd693a40232e170db13002f95ac";
 export const VSIX_SIZE = "36 KB";
 export const VSIX_VERSION = "0.2.0";
 
