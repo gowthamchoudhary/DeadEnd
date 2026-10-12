@@ -12,6 +12,7 @@ class RunTrace:
         self._events_list: list[dict] = []
         self._wf_error = "trace upload is handled by the DeadEnd backend"
         self.entire_checkpoint_id: str | None = None
+        self.entire_reason: str | None = None
 
     def __enter__(self):
         self.t0 = dt.datetime.now(dt.timezone.utc)
@@ -23,8 +24,9 @@ class RunTrace:
     def why_not(self) -> dict:
         out: dict = {}
         if self.entire_checkpoint_id is None:
-            out["entire"] = ("no Entire checkpoint: run `entire enable "
-                             f"--agent {self.agent}` in the repo")
+            out["entire"] = self.entire_reason or (
+                "no checkpoint reported; enable Entire capture and search with "
+                f"`entire enable --agent {self.agent} --search-skill`")
         return out
 
     def span(self, phase: str, **attrs):
