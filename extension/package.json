@@ -146,7 +146,7 @@
         },
         "deadend.dashboardUrl": {
           "type": "string",
-          "default": "https://deadend-web.vercel.app",
+          "default": "https://dead-end-tau.vercel.app",
           "description": "DeadEnd web dashboard base URL (for opening entries)."
         }
       }

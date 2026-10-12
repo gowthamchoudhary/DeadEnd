@@ -66,7 +66,7 @@ export function registerCoreCommands(
         return;
       }
       const base = vscode.workspace.getConfiguration().get<string>("deadend.dashboardUrl",
-        "https://deadend-web.vercel.app");
+        "https://dead-end-tau.vercel.app");
       await vscode.env.openExternal(vscode.Uri.parse(`${base}/entries/${encodeURIComponent(id)}`));
     }),
     vscode.commands.registerCommand("deadend.installRunner", () => installRunner(context)),
