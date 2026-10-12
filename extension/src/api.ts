@@ -104,6 +104,7 @@ export interface SetupStatusResp {
   tokens_count: number;
   teams: { team_id: string; name: string; role: string }[];
   neatlogs_recorded: boolean | null;
+  neatlogs_configured: boolean;
   entire_recorded: boolean | null;
 }
 
