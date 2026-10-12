@@ -20,6 +20,8 @@ export interface AgentInfo {
   tokens_reported?: string;
   turn_limit_flag?: string | null;
   instruction_file?: string;
+  runner_version?: string;
+  entire_session_search?: boolean;
 }
 
 export function runnerPath(): string {
