@@ -77,6 +77,9 @@ class DeviceCode(Base):
     requested_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     approved_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    first_attempt_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_delivery_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deliveries: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Entry(Base):

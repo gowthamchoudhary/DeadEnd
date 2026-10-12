@@ -78,6 +78,12 @@ def create_all():
         # device codes: durable encrypted device token (decrypted once by
         # /auth/device/resume, then cleared). Nullable until set on approval.
         ensure_column("device_codes", "device_token_cipher TEXT")
+        # sign-in fix (ac105b4): the device-start route now records the
+        # first attempt, last delivery and delivery count on the device
+        # code row, so those columns must exist on existing tables too.
+        ensure_column("device_codes", "first_attempt_at TIMESTAMPTZ")
+        ensure_column("device_codes", "last_delivery_at TIMESTAMPTZ")
+        ensure_column("device_codes", "deliveries INTEGER")
 
         # Legacy databases may have `embedding` as TEXT (pre-pgvector model).
         # Table is empty/col nullable at this stage: safe to drop and recreate
