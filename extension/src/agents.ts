@@ -5,6 +5,8 @@
  * report "runner missing" clearly instead of guessing.
  */
 import * as cp from "child_process";
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import { getOrCreateOutputChannel } from "./commands";
 import { msg } from "./auth";
@@ -21,7 +23,30 @@ export interface AgentInfo {
 }
 
 export function runnerPath(): string {
-  return vscode.workspace.getConfiguration().get<string>("deadend.runnerPath", "deadend-runner");
+  const configured = vscode.workspace.getConfiguration().get<string>(
+    "deadend.runnerPath", "deadend-runner");
+  if (process.platform !== "win32" || configured !== "deadend-runner") {
+    return configured;
+  }
+
+  // pip --user on Windows installs console scripts under AppData\Roaming\Python,
+  // which is not always inherited by VS Code even after a terminal restart.
+  const pythonRoot = process.env.APPDATA
+    ? path.join(process.env.APPDATA, "Python") : "";
+  if (pythonRoot && fs.existsSync(pythonRoot)) {
+    try {
+      const versions = fs.readdirSync(pythonRoot)
+        .filter((name) => /^Python\d+$/.test(name))
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+      for (const version of versions) {
+        const candidate = path.join(pythonRoot, version, "Scripts", "deadend-runner.exe");
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
+      }
+    } catch { /* keep PATH lookup as the fallback */ }
+  }
+  return configured;
 }
 
 export function detectAgents(cwd?: string): Promise<AgentInfo[]> {

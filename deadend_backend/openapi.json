@@ -924,6 +924,45 @@
         }
       }
     },
+    "/entries/demo-seeds": {
+      "post": {
+        "tags": [
+          "entries"
+        ],
+        "summary": "Seed Demo Entries",
+        "operationId": "seed_demo_entries_entries_demo_seeds_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoSeedIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/entries/{entry_id}": {
       "get": {
         "tags": [
@@ -2440,6 +2479,19 @@
         ],
         "title": "RunSummaryIn",
         "description": "Agent telemetry reported by deadend-runner after an attempt."
+      },
+      "DemoSeedIn": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id"
+        ],
+        "title": "DemoSeedIn"
       },
       "SearchIn": {
         "properties": {

@@ -16,6 +16,7 @@ from ..models import Entry, ReuseEvent, TeamMember
 from ..normalize import signature_hash
 from ..scans import strip_injection_from_context
 from ..security import RATE, current_user
+from ..term_matching import terms
 
 S = get_settings()
 router = APIRouter(tags=["retrieval"])
@@ -45,18 +46,18 @@ def retrieve(body: RetrieveIn, request=None, u=Depends(current_user),
     q = select(Entry).where(Entry.signature_hash == sig)
     exacts = db.execute(q).scalars().all()
 
-    # fallback: semantic-ish ranking on shared tokens (pgvector path ready; see app/embeddings.py)
+    # fallback: lexical overlap against titles, signatures and failure text.
     cands = db.execute(select(Entry).order_by(Entry.last_reuse_at.desc().nullslast(),
                                               Entry.created_at.desc()).limit(200)).scalars().all()
     pool, seen = list(exacts), set()
     for e in exacts:
         seen.add(e.id)
-    terms = set(_terms(body.error_text))
+    query_terms = terms(body.error_text)
     for e in cands:
         if e.id in seen:
             continue
-        blob = f"{e.signature_normalized} {e.redacted_error_text}".lower()
-        inter = len(terms & set(_terms(blob)))
+        blob = f"{e.title or ''} {e.signature_normalized} {e.redacted_error_text}".lower()
+        inter = len(query_terms & terms(blob))
         if inter >= 2:
             pool.append(e)
 
@@ -79,7 +80,7 @@ def retrieve(body: RetrieveIn, request=None, u=Depends(current_user),
         priv = 1 if e.scope == "private" else 0
         pack_bits = {
             "entry_id": e.id, "scope": e.scope, "seeded": e.seeded,
-            "verified": e.verified,
+            "verified": e.verified, "title": e.title,
             "signature": strip_injection_from_context((e.signature_normalized or "")[:200]),
             "error": strip_injection_from_context((e.redacted_error_text or "")[:400]),
             "dead_ends": [strip_injection_from_context(a.get("why_it_failed") or "")
@@ -105,12 +106,6 @@ def retrieve(body: RetrieveIn, request=None, u=Depends(current_user),
 def check_rate_per_user(uid: str, limit: int):
     if not RATE.hit(f"uid:{uid}", limit):
         raise HTTPException(429, "rate limit (user)")
-
-
-def _terms(t: str) -> set[str]:
-    return set(w for w in t.lower().split()) & set(
-        w for w in ("error", "exception", "failed", "traceback", "panic",
-                    "null", "none", "undefined", "cors", "timeout", "refused"))
 
 
 def _env_match(a: dict, b: dict) -> float:

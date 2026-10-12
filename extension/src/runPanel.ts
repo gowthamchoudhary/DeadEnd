@@ -33,8 +33,9 @@ interface RunState {
   active: boolean;
   cancelled?: boolean;
   phaseEvents: RunEventMsg[];
-  matchStats?: Array<{ entry_id?: string; score?: number | null;
-    observations?: number | null; verified?: boolean; scope?: string }>;
+  matchStats?: Array<{ entry_id?: string; title?: string | null;
+    signature?: string | null; score?: number | null; observations?: number | null;
+    verified?: boolean; scope?: string }>;
   packTokensEst?: number | null;
   tokensIn?: number | null;
   tokensOut?: number | null;
@@ -135,6 +136,9 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
         break;
       case "refreshChecks":
         await this.refreshChecks(true);
+        break;
+      case "seedDemoMemories":
+        await vscode.commands.executeCommand("deadend.seedDemoMemories");
         break;
       case "action":
         await this.doCheckAction(String(m.id ?? ""));
@@ -273,10 +277,11 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
     try {
       const r = await this.api.retrieve({
         team_id: teamId, error_text: task || "(empty task — showing what the current memory would return)",
-        env_fingerprint: {}, task, include_global: true, budget_tokens: 1500 });
+        env_fingerprint: {}, task, include_global: await this.store.getUseGlobal(), budget_tokens: 1500 });
       const results: RetrieveResult[] = r.results ?? [];
       const items = results.map((res, i) => ({
         id: res.entry_id ?? String(i),
+        title: res.title ?? null,
         score: res.confidence?.score ?? null,
         observations: res.confidence?.observations ?? null,
         verified: !!res.verified,
@@ -364,6 +369,7 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
         DEADEND_BACKEND: vscode.workspace.getConfiguration().get<string>(
           "deadend.backendUrl", "https://deadend-4wyx.onrender.com"),
         DEADEND_TOKEN: token,
+        DEADEND_INCLUDE_GLOBAL: (await this.store.getUseGlobal()) ? "true" : "false",
         ...(useMemory ? { DEADEND_TEAM: teamId } : {}),
       };
       const proc = cp.spawn(runner, args, { cwd: dir, env });
@@ -493,7 +499,10 @@ ${codiconLink(codiconUri?.toString())}
       <span class="muted">status & integrations</span></summary>
     <div class="row spread" style="margin-top:8px">
       <span class="muted">Refresh backend, runner, and repository checks</span>
-      <button class="secondary" id="refreshChecks"><span class="codicon codicon-refresh"></span> Refresh</button>
+      <div class="row">
+        <button class="secondary" id="loadDemoMemories">Load demo memories</button>
+        <button class="secondary" id="refreshChecks"><span class="codicon codicon-refresh"></span> Refresh</button>
+      </div>
     </div>
     <div id="checks"></div>
   </details>
@@ -629,11 +638,24 @@ ${codiconLink(codiconUri?.toString())}
         const c = document.createElement("div");
         c.className = "memcard";
         const conf = (m.score === null || m.score === undefined) ? null : Math.round(m.score * 100);
-        c.innerHTML = '<div class="row spread"><b>' + (m.entry_id || "(entry)") + "</b>" +
-          pill(m.verified ? "ok" : "warn", m.verified ? "verified" : "unverified") + "</div>" +
-          '<div class="muted">score ' + fmt(conf, "%") + " · " + fmt(m.observations, " obs") +
-          " · " + (m.scope || "?") + "</div>" +
-          '<div class="confbar"><div style="width:' + (conf ?? 0) + '%"></div></div>';
+        const heading = document.createElement("div");
+        heading.className = "row spread";
+        const title = document.createElement("b");
+        title.textContent = m.title || m.signature || (m.entry_id || "Memory");
+        const state = document.createElement("span");
+        state.className = "pill " + (m.verified ? "ok" : "warn");
+        state.textContent = m.verified ? "verified" : "demo / unverified";
+        heading.append(title, state);
+        const detail = document.createElement("div");
+        detail.className = "muted";
+        detail.textContent = "score " + fmt(conf, "%") + " observations " +
+          fmt(m.observations, "") + " scope " + (m.scope || "?");
+        const bar = document.createElement("div");
+        bar.className = "confbar";
+        const fill = document.createElement("div");
+        fill.style.width = (conf ?? 0) + "%";
+        bar.appendChild(fill);
+        c.append(heading, detail, bar);
         box.appendChild(c);
       });
     } else if (ev.phase === "inject") {
@@ -705,18 +727,31 @@ ${codiconLink(codiconUri?.toString())}
   function renderPreview(msg) {
     const pv = $("preview");
     pv.classList.remove("hidden");
-    pv.innerHTML = "<h4>Context preview (" + fmt(msg.packEst) + " tok est)</h4>";
+    pv.replaceChildren();
+    const heading = document.createElement("h4");
+    heading.textContent = "Context preview (" + fmt(msg.packEst) + " tok est)";
+    pv.appendChild(heading);
     (msg.items || []).forEach((it, i) => {
       const row = document.createElement("div");
       row.className = "row";
-      row.innerHTML = '<input type="checkbox" checked data-i="' + i + '"/>' +
-        '<span class="muted">' + (it.scope || "?") + " · " + fmt(it.score, "") +
-        " · " + (it.signature || "(no signature)") + "</span>";
+      const check = document.createElement("input");
+      check.type = "checkbox";
+      check.checked = true;
+      check.dataset.i = String(i);
+      const label = document.createElement("span");
+      label.className = "muted";
+      label.textContent = (it.scope || "?") + " · " + fmt(it.score, "") + " · " +
+        (it.title || it.signature || "(no title)");
+      row.append(check, label);
       pv.appendChild(row);
     });
     const cfg = document.createElement("div");
     cfg.className = "row";
-    cfg.innerHTML = "<button class='secondary' id='previewClose'>close</button>";
+    const close = document.createElement("button");
+    close.className = "secondary";
+    close.id = "previewClose";
+    close.textContent = "Close";
+    cfg.appendChild(close);
     pv.appendChild(cfg);
     $("previewClose").onclick = () => pv.classList.add("hidden");
   }
@@ -755,6 +790,7 @@ ${codiconLink(codiconUri?.toString())}
   $("previewBtn").onclick = () => vscode.postMessage({ op: "previewContext",
     task: $("task").value });
   $("refreshChecks").onclick = () => vscode.postMessage({ op: "refreshChecks" });
+  $("loadDemoMemories").onclick = () => vscode.postMessage({ op: "seedDemoMemories" });
   $("kill").onchange = () => vscode.postMessage({ op: "toggleKill", value: $("kill").checked });
   document.querySelectorAll("#scopeSeg button").forEach((b) => {
     b.onclick = () => {

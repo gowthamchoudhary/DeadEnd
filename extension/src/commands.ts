@@ -67,6 +67,30 @@ export function registerCoreCommands(
         );
       }
     }),
+    vscode.commands.registerCommand("deadend.seedDemoMemories", async () => {
+      const token = await store.getToken();
+      const teamId = await store.getTeam();
+      if (!token || !teamId) {
+        void vscode.window.showWarningMessage("Sign in and choose a team before loading demo memories.");
+        return;
+      }
+      const choice = await vscode.window.showWarningMessage(
+        "Load two clearly labelled demo memories into this team's private memory store? This is safe to repeat.",
+        { modal: true }, "Load demo memories",
+      );
+      if (choice !== "Load demo memories") {
+        return;
+      }
+      try {
+        const result = await api.seedDemoMemories(teamId);
+        memories?.refresh();
+        void vscode.window.showInformationMessage(
+          `DeadEnd: ${result.inserted.length} demo memories added; ${result.existing.length} already present (team-private).`,
+        );
+      } catch (ex) {
+        void vscode.window.showErrorMessage(`DeadEnd demo seed failed: ${msg(ex)}`);
+      }
+    }),
     vscode.commands.registerCommand("deadend.openEntry", async (entryId?: string) => {
       const id = entryId;
       if (!id) {

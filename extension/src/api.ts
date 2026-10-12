@@ -53,6 +53,7 @@ export interface ConfidenceInfo {
 export interface RetrieveResult {
   entry_id: string;
   scope: "private" | "global";
+  title?: string | null;
   seeded?: boolean;
   verified?: boolean;
   signature?: string;
@@ -261,6 +262,12 @@ export class DeadEndApi {
     // GET /entries returns a one-element wrapper array: [{page, per_page, entries}]
     return this.request<[{ page: number; per_page: number; entries: EntryView[] }]>(
       "GET", `/entries?${q.toString()}`).then((r) => (r[0]?.entries ?? []));
+  }
+
+  seedDemoMemories(teamId: string): Promise<{
+    inserted: string[]; existing: string[]; total: number; scope: string;
+  }> {
+    return this.request("POST", "/entries/demo-seeds", { team_id: teamId });
   }
 
   // ------------------------------------------------------------------- stats

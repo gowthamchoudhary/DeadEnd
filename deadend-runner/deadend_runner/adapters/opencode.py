@@ -21,6 +21,8 @@ Verified facts used here:
   - Entire `entire enable --agent opencode` writes .opencode/plugins/entire.ts.
 """
 import json
+import os
+from pathlib import Path
 from .base import (AgentAdapter, Capabilities, Limits, RunResult,
                    context_block, strip_block, upsert_block, which)
 
@@ -37,7 +39,25 @@ class OpenCodeAdapter(AgentAdapter):
     )
 
     def detect(self) -> bool:
-        return which("opencode") is not None
+        return self._binary() is not None
+
+    def _binary(self) -> str | None:
+        """Resolve OpenCode's Windows npm shim to its native executable.
+
+        Python's subprocess cannot launch a .cmd shim with shell=False.
+        npm's OpenCode shim points at this executable, so call it directly
+        when available and keep normal PATH resolution on other platforms.
+        """
+        binary = which("opencode")
+        if not binary:
+            return None
+        if os.name == "nt" and binary.lower().endswith((".cmd", ".bat")):
+            shim_dir = Path(binary).parent
+            native = shim_dir / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
+            if native.is_file():
+                return str(native)
+            return None
+        return binary
 
     def auth_status(self) -> str:
         # `opencode auth login` manages provider creds; DeadEnd never
@@ -53,7 +73,7 @@ class OpenCodeAdapter(AgentAdapter):
     def build_command(self, task: str, workdir: str, context_pack: dict,
                       limits: Limits) -> list[str]:
         prompt = _render_prompt(task, context_pack)
-        return ["opencode", "run", "--auto", "--format", "json", prompt]
+        return [self._binary() or "opencode", "run", "--auto", "--format", "json", prompt]
 
     def parse_result(self, stdout: str, stderr: str,
                      returncode: int) -> RunResult:

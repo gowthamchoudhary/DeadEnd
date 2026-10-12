@@ -11,6 +11,7 @@ import os
 import platform
 import re
 import subprocess
+import sys
 
 import httpx
 import typer
@@ -116,7 +117,7 @@ def run(
                                        help="also run `entire enable --agent <name>` first"),
     no_deadend: bool = typer.Option(False, "--no-deadend",
                                     help="baseline run: skip retrieve + skip context injection + skip run records"),
-    tests_cmd: str = typer.Option("bash run_tests.sh", "--tests-cmd",
+    tests_cmd: str = typer.Option("auto", "--tests-cmd",
                                   help="test command run inside the repo"),
     max_turns: int = typer.Option(25, "--max-turns"),
     wall_timeout_s: int = typer.Option(600, "--wall-timeout-s"),
@@ -126,6 +127,13 @@ def run(
     if not os.path.isdir(repo_abs):
         typer.echo(f"repo not found: {repo_abs}", err=True)
         raise typer.Exit(1)
+    if tests_cmd == "auto":
+        if os.name == "nt" and os.path.isdir(os.path.join(repo_abs, "tests")):
+            local_python = os.path.join(repo_abs, ".venv", "Scripts", "python.exe")
+            test_python = local_python if os.path.isfile(local_python) else sys.executable
+            tests_cmd = f'"{test_python}" -m pytest tests/ -q'
+        else:
+            tests_cmd = "bash run_tests.sh"
     if not team_id:
         typer.echo("DEADEND_TEAM not set", err=True)
         raise typer.Exit(1)
@@ -155,7 +163,9 @@ def run(
             retrieve = _post("/retrieve", {
                 "team_id": team_id, "error_text": task,
                 "env_fingerprint": _fingerprint(), "task": task,
-                "include_global": True, "budget_tokens": 1500})
+                "include_global": os.environ.get("DEADEND_INCLUDE_GLOBAL", "true").lower()
+                                 in ("1", "true", "yes"),
+                "budget_tokens": 1500})
             pack = _flatten(retrieve)
             results = retrieve.get("results", []) or []
             # real match facts only: per-result confidence + observation count
@@ -165,6 +175,8 @@ def run(
                 "observations": (r.get("confidence") or {}).get("observations"),
                 "verified": r.get("verified"),
                 "scope": r.get("scope"),
+                "title": r.get("title"),
+                "signature": r.get("signature"),
             } for r in results]
             pack_tokens_est = retrieve.get("pack_tokens_est")
             run = _post("/runs", {"team_id": team_id, "task": task,

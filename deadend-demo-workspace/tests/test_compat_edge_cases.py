@@ -43,6 +43,14 @@ def test_compat_wrapper_override_is_normalised_not_bypass() -> None:
     assert pri == "low"
 
 
+def test_compat_wrapper_low_override_cannot_demote_urgent_ticket() -> None:
+    cat, pri, ans = classify_with_compat(
+        "Urgent: the network is down and users are blocked.",
+        priority_override="low",
+    )
+    assert pri == "high"
+
+
 def test_compat_wrapper_urgent_override_still_counts_as_high() -> None:
     cat, pri, ans = classify_with_compat(
         "Printer on floor 3 is jammed again.", priority_override="urgent")

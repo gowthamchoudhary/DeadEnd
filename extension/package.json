@@ -2,7 +2,7 @@
   "name": "deadend",
   "displayName": "DeadEnd",
   "description": "Failure-memory for coding agents: retrieve verified fixes, run agents, share what works.",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "publisher": "deadend",
   "license": "MIT",
   "icon": "icon.png",
@@ -29,6 +29,11 @@
       {
         "command": "deadend.chooseTeam",
         "title": "DeadEnd: Choose team",
+        "category": "DeadEnd"
+      },
+      {
+        "command": "deadend.seedDemoMemories",
+        "title": "DeadEnd: Load demo memories into team",
         "category": "DeadEnd"
       },
       {
@@ -160,7 +165,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
-    "package": "vsce package -o dist/deadend-0.3.5.vsix"
+    "package": "vsce package -o dist/deadend-0.3.6.vsix"
   },
   "devDependencies": {
     "@types/node": "18.x",

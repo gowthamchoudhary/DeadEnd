@@ -33,9 +33,8 @@ def _normalise_priority_input(priority: object) -> str:
 def classify_with_compat(message: str, priority_override: object = None) -> tuple[str, str, str]:
     """Compat wrapper used by a legacy integration path in the demo.
 
-    This is the function that has the real bug in the demo: it normalises
-    priority through `_normalise_priority_input`, but the legacy caller can
-    pass a priority override that bypasses the urgency cue logic entirely.
+    This is the compatibility seam used by the demo: a legacy override can
+    currently bypass the classifier's urgency result.
     """
     from apps.classifier import classify_ticket
     category, priority, answer = classify_ticket(message)

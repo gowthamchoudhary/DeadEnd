@@ -45,6 +45,8 @@ This workspace is the one we point the extension / runner at for the demo.
 - `compat/` — version-tolerant shims used by the demo to make failures look
   like real multi-version compatibility issues.
 - `tests/` — the test suite the runner can invoke.
-- `memory_seeds/` — the pre-created DeadEnd memory payloads used to seed
-  private and global memories before the demo run.
+- `memory_seeds/` — draft Markdown examples for the original private/global
+  scenarios. They are not imported automatically. For the current repeatable
+  demo, use **DeadEnd: Load demo memories into team**; that inserts two
+  labelled, team-private fixtures through the authenticated backend API.
 - `demo_tasks.md` — the prompts and beats used in the demo.
