@@ -8,9 +8,10 @@ These prompts and beats are for a truthful, repeatable DeadEnd demo.
 2. Sign in, choose the demo team, then select **Private team context only**
    when asked about global context.
 3. Run **DeadEnd: Load demo memories into team** from the Command Palette.
-   It adds two labelled, team-private fixtures and is safe to repeat.
-4. In the DeadEnd panel, preview the task below and confirm the compatibility
-   memory appears before starting the run.
+   It adds ten labelled, team-private fixtures and is safe to repeat. Existing
+   entries are detected, so running it again only adds new fixtures.
+4. In the DeadEnd panel, preview the complex task below. Confirm several
+   compatibility, validation, persistence, and API-contract memories appear.
 
 ## Demo beat 1: inspect the memory
 
@@ -19,20 +20,31 @@ priority override**. Point out its failure signature, failed approaches,
 proposed fix, and the `Demo seed` label. It is example data, not a production
 incident or a cross-team verified memory.
 
-## Demo beat 2: retrieve the memory and fix the reproducible bug
+## Demo beat 2: retrieve several memories for a multi-file task
 
 Task:
 
-> The legacy compatibility wrapper is demoting urgent network tickets to low
-> when its caller passes a low priority override. Make urgency win over that
-> downgrade, preserve low overrides for non-urgent tickets, and run the tests.
+> Add a typed POST /tickets/batch endpoint to ticketdesk-api without changing
+> the existing POST /tickets response. Accept up to 50 ticket messages with an
+> optional legacy priority override. Validate the whole batch before writing:
+> empty and whitespace-only messages must be rejected with no partial tickets.
+> Route priority overrides through the existing compatibility helper, but
+> urgent network or hardware reports must stay high while routine tickets may
+> still use a low override. Keep legacy aliases such as urgent, critical, and
+> normal working and reject malformed overrides. Preserve deterministic
+> per-ticket IDs independent of batch order or answer-template text, and make
+> every returned ID fetchable through GET /tickets/{ticket_id}. Add focused
+> regression tests for these cases and keep the existing single-ticket tests
+> passing.
 
 Show:
 
-- Preview context lists the team-private compatibility memory.
-- The live timeline reports its retrieve match and injected context.
-- OpenCode updates the compatibility wrapper and adds a regression test.
-- The tests pass, including the existing non-urgent override behavior.
+- Preview context lists several relevant team-private memories.
+- The live timeline reports actual retrieval and injection counts.
+- OpenCode works across the route, compatibility wrapper, ticket store, and
+  tests rather than making a one-line keyword change.
+- The tests pass for batch atomicity, urgency precedence, legacy aliases,
+  deterministic IDs, GET-by-ID, and the existing single-ticket contract.
 
 Key point: DeadEnd supplied a prior failure and proposed fix before the agent
 started; the agent then applied and tested the fix in this workspace.
@@ -45,14 +57,32 @@ optional if time is short.
 
 ## Prompts to paste
 
-### Preview / run with memory
+### Complex task with memory
 
-> The legacy compatibility wrapper is demoting urgent network tickets to low
-> when its caller passes a low priority override. Make urgency win over that
-> downgrade, preserve low overrides for non-urgent tickets, and run the tests.
+> Add a typed POST /tickets/batch endpoint to ticketdesk-api without changing
+> the existing POST /tickets response. Accept up to 50 ticket messages with an
+> optional legacy priority override. Validate the whole batch before writing:
+> empty and whitespace-only messages must be rejected with no partial tickets.
+> Route priority overrides through the existing compatibility helper, but
+> urgent network or hardware reports must stay high while routine tickets may
+> still use a low override. Keep legacy aliases such as urgent, critical, and
+> normal working and reject malformed overrides. Preserve deterministic
+> per-ticket IDs independent of batch order or answer-template text, and make
+> every returned ID fetchable through GET /tickets/{ticket_id}. Add focused
+> regression tests for these cases and keep the existing single-ticket tests
+> passing.
 
 ### Baseline without memory
 
-> The legacy compatibility wrapper is demoting urgent network tickets to low
-> when its caller passes a low priority override. Make urgency win over that
-> downgrade, preserve low overrides for non-urgent tickets, and run the tests.
+> Add a typed POST /tickets/batch endpoint to ticketdesk-api without changing
+> the existing POST /tickets response. Accept up to 50 ticket messages with an
+> optional legacy priority override. Validate the whole batch before writing:
+> empty and whitespace-only messages must be rejected with no partial tickets.
+> Route priority overrides through the existing compatibility helper, but
+> urgent network or hardware reports must stay high while routine tickets may
+> still use a low override. Keep legacy aliases such as urgent, critical, and
+> normal working and reject malformed overrides. Preserve deterministic
+> per-ticket IDs independent of batch order or answer-template text, and make
+> every returned ID fetchable through GET /tickets/{ticket_id}. Add focused
+> regression tests for these cases and keep the existing single-ticket tests
+> passing.

@@ -2,7 +2,7 @@
   "name": "deadend",
   "displayName": "DeadEnd",
   "description": "Failure-memory for coding agents: retrieve verified fixes, run agents, share what works.",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "publisher": "deadend",
   "license": "MIT",
   "icon": "icon.png",
@@ -165,7 +165,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
-    "package": "vsce package -o dist/deadend-0.3.8.vsix"
+    "package": "vsce package -o dist/deadend-0.3.9.vsix"
   },
   "devDependencies": {
     "@types/node": "18.x",

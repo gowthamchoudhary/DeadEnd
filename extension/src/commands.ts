@@ -75,7 +75,7 @@ export function registerCoreCommands(
         return;
       }
       const choice = await vscode.window.showWarningMessage(
-        "Load two clearly labelled demo memories into this team's private memory store? This is safe to repeat.",
+        "Load the clearly labelled synthetic demo memory pack into this team's private memory store? This is safe to repeat.",
         { modal: true }, "Load demo memories",
       );
       if (choice !== "Load demo memories") {

@@ -20,23 +20,19 @@ This workspace is the one we point the extension / runner at for the demo.
 
 - It is deterministic: no database, no network calls at runtime, everything
   in-memory.
-- It has three seeded failure+fix situations that map to real DeadEnd memory
-  shapes:
-  1. **Private / team** failure that only matters inside this org.
-  2. **Private / team** failure that is environment-specific.
-  3. **Global** failure that many teams hit, verified, redacted, and approved
-     for sharing.
-- It has a task prompt that has no pre-existing memory yet, so we can demo the
-  "agent figures it out, then the fix gets captured as a new memory" story.
+- The authenticated demo seeder loads ten clearly labelled synthetic,
+  **private/team** failure memories covering ticket validation, compatibility,
+  priority, deterministic IDs, batch behavior, and API contracts.
+- Its complex batch-intake task is designed to retrieve several related
+  memories and lead the agent through a multi-file implementation.
 
 ## How the demo uses it
 
 - The extension is pointed at this folder as the workspace.
 - DeadEnd is signed in and a team is chosen.
-- Memories are already present (seeded) for situation 1, 2, and 3.
-- We run a task that retrieves private + global memory in the same run.
-- We run a task with no matching memory, watch the agent solve it, and then
-  show that solution being saved as a new memory.
+- Run **DeadEnd: Load demo memories into team** to add the ten private fixtures.
+- Preview the complex batch task and confirm relevant context before starting.
+- For a comparison, run the same prompt with memory disabled.
 
 ## Files that matter for the demo
 
@@ -47,6 +43,5 @@ This workspace is the one we point the extension / runner at for the demo.
 - `tests/` — the test suite the runner can invoke.
 - `memory_seeds/` — draft Markdown examples for the original private/global
   scenarios. They are not imported automatically. For the current repeatable
-  demo, use **DeadEnd: Load demo memories into team**; that inserts two
-  labelled, team-private fixtures through the authenticated backend API.
+  demo, use **DeadEnd: Load demo memories into team**; that inserts ten labelled, team-private fixtures through the authenticated backend API.
 - `demo_tasks.md` — the prompts and beats used in the demo.
