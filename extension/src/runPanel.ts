@@ -561,21 +561,27 @@ ${codiconLink(codiconUri?.toString())}
   }
 
   function renderAgents(agents) {
-    const sel = $("agent"); sel.innerHTML = "";
-    let first = true;
-    (agents || []).filter((a) => a.detected).forEach((a) => {
+    const sel = $("agent");
+    const previous = sel.value;
+    sel.innerHTML = "";
+    const detected = (agents || []).filter((a) => a.detected);
+    detected.forEach((a) => {
       const o = document.createElement("option");
-      o.value = a.agent; o.textContent = a.agent;
-      if (first) { sel.appendChild(o); first = false; }
+      o.value = a.agent;
+      o.textContent = ({ "claude-code": "Claude Code", codex: "OpenAI Codex",
+        opencode: "OpenCode", pi: "Pi", antigravity: "Antigravity",
+        "copilot-cli": "GitHub Copilot CLI" })[a.agent] || a.agent;
+      sel.appendChild(o);
     });
-    if (first) {
+    if (!detected.length) {
       const o = document.createElement("option");
       o.value = ""; o.textContent = "(no detected agent)";
       sel.appendChild(o);
     }
-    const det = (agents || []).filter((a) => a.detected).map((a) => a.agent);
-    $("agentNote").textContent = det.length ?
-      ("detected: " + det.join(", ") + "") : "runner missing or no agent CLIs on $PATH";
+    if (detected.some((a) => a.agent === previous)) sel.value = previous;
+    $("agentNote").textContent = detected.length ?
+      "Choose which installed agent will handle this run. Each agent uses its own login/provider setup." :
+      "Install and sign in to a supported agent, then refresh setup.";
   }
 
   // ------------------------------------------------------------- timeline
