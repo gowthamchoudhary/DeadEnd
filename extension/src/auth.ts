@@ -131,14 +131,18 @@ export class AuthController implements vscode.Disposable {
 
     const userCode = start.user_code;
     await vscode.env.openExternal(vscode.Uri.parse(start.approve_url));
-    const clicked = await vscode.window.showInformationMessage(
+    // Offer the copy action without blocking the device-flow poll loop. The
+    // browser approval can happen immediately, so polling must start even if
+    // the user leaves this notification open.
+    void vscode.window.showInformationMessage(
       `DeadEnd: approve in your browser with code ${userCode}`,
       "Copy code",
-    );
-    if (clicked === "Copy code") {
-      await vscode.env.clipboard.writeText(userCode);
-      this.log("code copied to clipboard");
-    }
+    ).then(async (clicked) => {
+      if (clicked === "Copy code") {
+        await vscode.env.clipboard.writeText(userCode);
+        this.log("code copied to clipboard");
+      }
+    }).catch((ex) => this.log(`copy-code notification failed: ${msg(ex)}`));
 
     const expiresMs = (start.expires_in ?? 900) * 1000;
     const deadline = Date.now() + expiresMs;
