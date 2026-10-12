@@ -9,20 +9,31 @@
 import { useState } from "react";
 import { VSIX_RELEASE_URL, VSIX_SHA256, VSIX_SIZE, VSIX_VERSION } from "./Download";
 
-/** Single-line/multi-line command block with a copy button. */
-export function Copyable({ text }: { text: string }) {
+/** Command with a copy button. Block form for multi-line/shell blocks;
+ * inline form for single commands shown inside a row. */
+export function Copyable({ text, inline }: { text: string; inline?: boolean }) {
   const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  if (inline) {
+    return (
+      <span className="flex items-center gap-2 bg-ink-850 border border-line-900 rounded-cell pl-3 pr-1 py-1 max-w-full">
+        <code className="font-mono text-tiny text-text-secondary truncate">{text}</code>
+        <button onClick={copy}
+          className="rounded-chip border border-line-700 px-2 py-0.5 text-tiny text-text-secondary hover:border-line-600 hover:text-text-primary transition-colors shrink-0">
+          {copied ? "copied ✓" : "copy"}
+        </button>
+      </span>
+    );
+  }
   return (
     <div className="relative mt-3">
       <pre className="font-mono text-tiny text-text-secondary bg-ink-850 border border-line-900 rounded-cell p-3 pr-16 overflow-x-auto">{text}</pre>
-      <button
-        onClick={() => {
-          void navigator.clipboard?.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        }}
-        className="absolute top-2 right-2 rounded-chip border border-line-700 px-2 py-1 text-tiny text-text-secondary hover:border-line-600 hover:text-text-primary transition-colors"
-      >
+      <button onClick={copy}
+        className="absolute top-2 right-2 rounded-chip border border-line-700 px-2 py-1 text-tiny text-text-secondary hover:border-line-600 hover:text-text-primary transition-colors">
         {copied ? "copied ✓" : "copy"}
       </button>
     </div>
@@ -49,14 +60,15 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   );
 }
 
-/** Per-agent rows (step 6) — exactly SUPPORT.md / extension login hints. */
-const AGENT_LOGIN: { name: string; hint: string }[] = [
-  { name: "Claude Code", hint: "run `claude` once and complete /login" },
-  { name: "Codex", hint: "run `codex login` in a terminal" },
-  { name: "OpenCode", hint: "run `opencode auth login` (project: opencode.json)" },
-  { name: "Pi", hint: "run `pi` once; sign in inside the TUI with your provider key" },
-  { name: "Antigravity", hint: "run `agy` once interactively to authenticate" },
-  { name: "Copilot CLI", hint: "run `copilot auth login` (GitHub Copilot subscription)" },
+/** Per-agent rows (step 6) — exactly SUPPORT.md / extension login hints.
+ * cmd is the real command (copy button); note is the extra context. */
+const AGENT_LOGIN: { name: string; cmd: string; note: string }[] = [
+  { name: "Claude Code", cmd: "claude", note: "then complete /login in the TUI" },
+  { name: "Codex", cmd: "codex login", note: "" },
+  { name: "OpenCode", cmd: "opencode auth login", note: "project: opencode.json" },
+  { name: "Pi", cmd: "pi", note: "sign in inside the TUI with your provider key" },
+  { name: "Antigravity", cmd: "agy", note: "sign in once interactively to authenticate" },
+  { name: "Copilot CLI", cmd: "copilot auth login", note: "needs a GitHub Copilot subscription" },
 ];
 
 export function GettingStartedDoc() {
@@ -141,9 +153,10 @@ export function GettingStartedDoc() {
         </p>
         <div className="border border-line-900 rounded-cell divide-y divide-line-900">
           {AGENT_LOGIN.map((a) => (
-            <div key={a.name} className="flex flex-wrap gap-2 px-3 py-2 text-small">
-              <span className="w-32 shrink-0 text-text-primary">{a.name}</span>
-              <span className="font-mono text-tiny text-text-secondary">{a.hint}</span>
+            <div key={a.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+              <span className="w-32 shrink-0 text-small text-text-primary">{a.name}</span>
+              <span className="flex-1 min-w-[12rem]"><Copyable inline text={a.cmd} /></span>
+              {a.note && <span className="text-tiny text-text-muted">{a.note}</span>}
             </div>
           ))}
         </div>
@@ -161,10 +174,12 @@ export function GettingStartedDoc() {
         </p>
         <Copyable text="export NEATLOGS_API_KEY=<your neatlogs project key>" />
         <p>
-          Optional, for fuller per-agent capture:
-          <code className="font-mono text-text-primary"> pip install neatlogs neatlogs-claude-code</code>{" "}
-          (codex and opencode plugins likewise — see SUPPORT.md). The
-          extension&apos;s checklist marks neatlogs recording once a run has
+          Optional, for fuller per-agent capture (codex and opencode plugins
+          likewise — see SUPPORT.md):
+        </p>
+        <Copyable text="pip install neatlogs neatlogs-claude-code" />
+        <p>
+          The extension&apos;s checklist marks neatlogs recording once a run has
           actually recorded a trace id; a key alone shows as &ldquo;set, no run
           recorded yet&rdquo;.
         </p>
