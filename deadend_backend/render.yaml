@@ -22,3 +22,5 @@ services:
         sync: false          # e.g. https://deadend-4wyx.onrender.com
       - key: DEADEND_NEATLOGS_API_KEY
         sync: false
+      - key: DEADEND_NEATLOGS_PROJECT
+        value: DeadEnd
