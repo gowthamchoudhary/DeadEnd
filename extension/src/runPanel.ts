@@ -107,6 +107,8 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
   // ----------------------------------------------------------- setup checks
   private async refreshChecks(recheckBackend: boolean): Promise<void> {
     this.checks = await this.setup!.check(this.workspaceDir(), recheckBackend);
+    this.agents = this.setup!.agents;
+    this.post("agents", { agents: this.agents });
     const signedIn = this.checks.find((c) => c.id === "signin")?.status === "ok";
     this.post("checks", {
       checks: this.checks, signedIn,
@@ -292,6 +294,14 @@ export class RunPanelProvider implements vscode.WebviewViewProvider, vscode.Disp
   // ------------------------------------------------------------------- run
   private async startRun(task: string, agent: string,
                          scope: string, useMemory: boolean): Promise<void> {
+    if (!task.trim()) {
+      void vscode.window.showWarningMessage("Enter a task for the coding agent.");
+      return;
+    }
+    if (!agent || !this.agents.some((a) => a.agent === agent && a.detected)) {
+      void vscode.window.showWarningMessage("Choose an installed agent from the Agent list, then refresh setup if the list is empty.");
+      return;
+    }
     const block = this.requiredGreen();
     if (block) {
       void vscode.window.showWarningMessage(`DeadEnd: ${block}`);
@@ -733,9 +743,14 @@ ${codiconLink(codiconUri?.toString())}
   }
 
   // ------------------------------------------------------------- wiring
-  $("runBtn").onclick = () => vscode.postMessage({ op: "run",
-    task: $("task").value, agent: $("agent").value, scope,
-    useMemory: $("mem").checked });
+  $("runBtn").onclick = () => {
+    if (!$("task").value.trim() || !$("agent").value) {
+      $("gate").textContent = !$("task").value.trim() ? "Enter a task." : "Choose an installed agent.";
+      return;
+    }
+    vscode.postMessage({ op: "run", task: $("task").value,
+      agent: $("agent").value, scope, useMemory: $("mem").checked });
+  };
   $("cancelBtn").onclick = () => vscode.postMessage({ op: "cancel" });
   $("previewBtn").onclick = () => vscode.postMessage({ op: "previewContext",
     task: $("task").value });

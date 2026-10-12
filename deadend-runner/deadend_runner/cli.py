@@ -129,7 +129,11 @@ def run(
     if not team_id:
         typer.echo("DEADEND_TEAM not set", err=True)
         raise typer.Exit(1)
-    a = get_adapter(agent)
+    try:
+        a = get_adapter(agent)
+    except KeyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2)
     if not a.detect():
         typer.echo(f"agent CLI not detected on this machine: {a.AGENT}", err=True)
         raise typer.Exit(1)
