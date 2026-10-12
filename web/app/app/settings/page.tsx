@@ -149,7 +149,7 @@ export default function SettingsPage() {
                 <Step k="runner" v={`deadend-runner run <repo> <task> ${a.runner}`} />
                 <Step k="MCP" v={`deadend-runner mcp-config ${a.runner} → ${a.mcp}`} />
                 <Step k="instruction file" v={a.file} />
-                <Step k="capture" v={`entire enable --yes ${a.runner}`} />
+                <Step k="capture" v={`entire enable --yes --agent ${a.runner} --search-skill`} />
               </dl>
             </div>
           ))}
