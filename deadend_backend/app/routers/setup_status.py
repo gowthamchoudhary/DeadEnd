@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import ApiToken, Run, RunEvent, Team, TeamMember
 from ..security import current_user
+from ..config import get_settings
 
 router = APIRouter(tags=["setup"])
 
@@ -23,6 +24,7 @@ class SetupStatus(BaseModel):
     tokens_count: int
     teams: list
     neatlogs_recorded: bool | None
+    neatlogs_configured: bool
     entire_recorded: bool | None
 
 
@@ -59,6 +61,7 @@ def setup_status(u=Depends(current_user), db: Session = Depends(get_db)):
         "teams": teams,
         "neatlogs_recorded": _scan_record_events(db, u.id,
                                                  "neatlogs_trace_id"),
+        "neatlogs_configured": bool(get_settings().neatlogs_api_key),
         "entire_recorded": _scan_record_events(db, u.id,
                                                "entire_checkpoint_id"),
     }
